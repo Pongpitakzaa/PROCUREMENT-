@@ -1,47 +1,20 @@
-"""ทะเบียนผู้ประกอบการ / บุคลากร / กลุ่ม LINE."""
+"""ทะเบียนบุคลากร / กลุ่ม LINE (ผู้ประกอบการอยู่ที่ app/api/vendors.py)."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import StringConstraints
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.crypto import encrypt_field
-from app.core.database import get_db, like_pattern
+from app.core.database import get_db
 from app.core.security import Perm, require
-from app.models import NotificationChannel, Personnel, User, Vendor
-from app.rules.validators import clean_text
-from app.schemas import StrictModel, VendorCreate
+from app.models import NotificationChannel, Personnel, User
+from app.schemas import StrictModel
 from app.services.audit_service import write_audit
 
 router = APIRouter(prefix="/api", tags=["registry"])
 DB = Annotated[Session, Depends(get_db)]
-
-
-@router.post("/vendors", status_code=201)
-def create_vendor(body: VendorCreate, request: Request, db: DB,
-                  user: Annotated[User, Depends(require(Perm.VENDOR_WRITE))]) -> dict:
-    if db.scalar(select(Vendor.vendor_id).where(Vendor.tax_id == body.tax_id)):
-        raise HTTPException(409, "ผู้ประกอบการนี้มีในทะเบียนแล้ว")
-    vendor = Vendor(
-        tax_id=body.tax_id, vendor_type=body.vendor_type, name_th=body.name_th, address_th=body.address_th,
-        email=body.email,
-        phone_enc=encrypt_field(body.phone, "vendors.phone") if body.phone else None,
-        bank_account_enc=encrypt_field(body.bank_account, "vendors.bank_account") if body.bank_account else None)
-    db.add(vendor)
-    db.flush()
-    write_audit(db, action="CREATE", user_id=user.user_id, request=request, entity_table="vendors",
-                entity_id=vendor.vendor_id, new=body.model_dump())   # phone/bank_account ถูก redact
-    return {"vendor_id": vendor.vendor_id}
-
-
-@router.get("/vendors")
-def search_vendors(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))],
-                   q: Annotated[str, Query(min_length=2, max_length=100)]) -> list[dict]:
-    pattern = like_pattern(clean_text(q))
-    rows = db.scalars(select(Vendor).where((Vendor.tax_id == q) | Vendor.name_th.ilike(pattern, escape="\\"))
-                      .limit(20))
-    return [{"vendor_id": v.vendor_id, "tax_id": v.tax_id, "name_th": v.name_th} for v in rows]
 
 
 @router.get("/personnel")

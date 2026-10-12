@@ -159,6 +159,29 @@ def test_full_specific_method_flow(client, monkeypatch):
         "tax_id": VENDOR_TAX_ID, "vendor_type": "JURISTIC", "name_th": "บริษัท ตัวอย่างไอที จำกัด",
         "address_th": "99 ถนนพหลโยธิน กรุงเทพมหานคร", "phone": "021234567", "bank_account": "1234567890"})
     assert r.status_code == 201, r.text
+    vendor_id = r.json()["vendor_id"]
+
+    # รายละเอียด: ข้อมูลติดต่อออกมาแบบปิดบังเท่านั้น
+    v = client.get(f"/api/vendors/{vendor_id}", headers=officer).json()
+    assert v["phone_masked"] == "xxx-xxx-4567" and v["bank_account_masked"] == "xxxxxx7890"
+    assert "1234567890" not in str(v) and "021234567" not in str(v)
+    # แก้ไข: ส่งเฉพาะช่องที่เปลี่ยน · ห้ามลบชื่อ · แก้เลขผู้เสียภาษีไม่ได้
+    assert client.patch(f"/api/vendors/{vendor_id}", json={"email": "sales@example.co.th"}, headers=officer).status_code == 200
+    assert client.get(f"/api/vendors/{vendor_id}", headers=officer).json()["email"] == "sales@example.co.th"
+    assert client.patch(f"/api/vendors/{vendor_id}", json={"name_th": None}, headers=officer).status_code == 422
+    assert client.patch(f"/api/vendors/{vendor_id}", json={"tax_id": "0105536092641"}, headers=officer).status_code == 422
+
+    # บัญชีผู้ทิ้งงาน: เฉพาะหัวหน้าเจ้าหน้าที่ · ผู้ประกอบการที่ถูกระงับเลือกเป็นผู้ชนะไม่ได้
+    other = client.post("/api/vendors", headers=officer, json={
+        "tax_id": "0105536000003", "vendor_type": "JURISTIC", "name_th": "บริษัท ทิ้งงาน จำกัด", "address_th": "x"}).json()
+    sanction = {"sanction_type": "ABANDONED_WORK", "reference_no": "กค (กวจ) 0405.2/ว 1", "effective_from": "2020-01-01"}
+    assert client.post(f"/api/vendors/{other['vendor_id']}/sanctions", json=sanction, headers=officer).status_code == 403
+    bad = {**sanction, "effective_to": "2019-01-01"}
+    assert client.post(f"/api/vendors/{other['vendor_id']}/sanctions", json=bad, headers=head).status_code == 422
+    assert client.post(f"/api/vendors/{other['vendor_id']}/sanctions", json=sanction, headers=head).status_code == 201
+    listed = client.get("/api/vendors", params={"sanctioned": "true"}, headers=officer).json()
+    assert [x["vendor_id"] for x in listed] == [other["vendor_id"]]
+    assert client.get("/api/vendors", params={"q": "0-1055-36092-64-1"}, headers=officer).json()[0]["vendor_id"] == vendor_id
 
     assert submit("PRICE_AGREEMENT", price).status_code == 200
     assert approve("PRICE_AGREEMENT").status_code == 200

@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError, InternalError
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import admin, auth, dashboard, documents, projects, registry
+from app.api import admin, auth, dashboard, documents, projects, registry, vendors
 from app.core.config import get_settings
 from app.services.export_service import ExportError
 from app.services.workflow_service import ValidationFailed
@@ -110,7 +110,7 @@ async def on_unhandled(request: Request, exc: Exception) -> JSONResponse:
     return _problem(500, f"เกิดข้อผิดพลาดภายในระบบ (อ้างอิง {getattr(request.state, 'request_id', '-')})")
 
 
-for r in (auth.router, projects.router, registry.router, documents.router, dashboard.router, admin.router):
+for r in (auth.router, projects.router, vendors.router, registry.router, documents.router, dashboard.router, admin.router):
     app.include_router(r)
 
 

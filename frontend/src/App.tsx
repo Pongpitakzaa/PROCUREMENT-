@@ -4,11 +4,12 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
+import { VendorsPage } from "./pages/VendorsPage";
 import type { MethodInfo } from "./types";
 
 interface Me { full_name_th: string; roles: string[]; permissions: string[] }
 
-type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" };
+type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" };
 
 const ROLE_TH: Record<string, string> = {
   ADMIN: "ผู้ดูแลระบบ", PROCUREMENT_OFFICER: "เจ้าหน้าที่พัสดุ", HEAD_OF_PROCUREMENT: "หัวหน้าเจ้าหน้าที่",
@@ -61,6 +62,7 @@ export function App() {
 
   const canCreate = me?.permissions.includes("project:write") ?? false;
   const canViewDashboard = me?.permissions.includes("dashboard:view") ?? false;
+  const can = (perm: string) => me?.permissions.includes(perm) ?? false;
   const toList = () => setView({ name: "list" });
 
   return (
@@ -76,6 +78,9 @@ export function App() {
               สร้างโครงการ
             </button>
           )}
+          <button type="button" className={view.name === "vendors" ? "on" : ""} onClick={() => setView({ name: "vendors" })}>
+            ผู้ประกอบการ
+          </button>
           {canViewDashboard && (
             <button type="button" className={view.name === "dashboard" ? "on" : ""} onClick={() => setView({ name: "dashboard" })}>
               Dashboard
@@ -105,6 +110,10 @@ export function App() {
         )}
         {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} onBack={toList} />}
         {view.name === "dashboard" && <DashboardPage />}
+        {view.name === "vendors" && (
+          <VendorsPage canWrite={can("vendor:write")} canSanction={can("vendor:sanction")}
+                       onOpenProject={(projectId) => setView({ name: "detail", projectId })} />
+        )}
       </main>
     </>
   );

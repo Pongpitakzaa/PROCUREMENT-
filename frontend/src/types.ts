@@ -157,3 +157,59 @@ export interface DashboardSummary {
     budget_total: ApiMoney;
   }[];
 }
+
+export type VendorType = "JURISTIC" | "INDIVIDUAL";
+
+export interface VendorListItem {
+  vendor_id: number;
+  tax_id: string;
+  vendor_type: VendorType;
+  name_th: string;
+  bids: number;
+  wins: number;
+  awarded_total: ApiMoney;
+  is_sanctioned: boolean;
+}
+
+export interface VendorSanction {
+  sanction_id: number;
+  sanction_type: "ABANDONED_WORK" | "SUSPENDED";
+  reference_no: string;
+  effective_from: string;
+  effective_to: string | null;
+  is_active: boolean;
+}
+
+export interface VendorDetail {
+  vendor_id: number;
+  tax_id: string;
+  vendor_type: VendorType;
+  name_th: string;
+  address_th: string;
+  email: string | null;
+  phone_masked: string | null;
+  bank_account_masked: string | null;
+  created_at: string;
+  is_sanctioned: boolean;
+  sanctions: VendorSanction[];
+  projects: {
+    project_id: number;
+    project_code: string;
+    title_th: string;
+    fiscal_year_be: number;
+    method_name_th: string;
+    quoted_amount: ApiMoney;
+    agreed_amount: ApiMoney | null;
+    is_winner: boolean;
+  }[];
+}
+
+export interface VendorDraft {
+  tax_id: string;
+  vendor_type: VendorType;
+  name_th: string;
+  address_th: string;
+  phone: string;
+  email: string;
+  bank_account: string;
+}

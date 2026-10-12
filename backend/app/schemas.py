@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -26,6 +27,10 @@ def _check_tax_id(v: str) -> str:
 
 
 TaxId = Annotated[str, StringConstraints(pattern=r"^\d{13}$"), AfterValidator(_check_tax_id)]
+
+
+Phone = Annotated[str, StringConstraints(pattern=r"^0\d{8,9}$")]
+BankAccount = Annotated[str, StringConstraints(pattern=r"^\d{10,15}$")]
 
 
 class StrictModel(BaseModel):
@@ -79,9 +84,9 @@ class VendorCreate(StrictModel):
     vendor_type: Literal["JURISTIC", "INDIVIDUAL"]
     name_th: ThaiText
     address_th: LongText
-    phone: Annotated[str, StringConstraints(pattern=r"^0\d{8,9}$")] | None = None
+    phone: Phone | None = None
     email: EmailStr | None = None
-    bank_account: Annotated[str, StringConstraints(pattern=r"^\d{10,15}$")] | None = None
+    bank_account: BankAccount | None = None
 
     @model_validator(mode="after")
     def _type_matches_tax_id(self) -> "VendorCreate":
@@ -90,6 +95,38 @@ class VendorCreate(StrictModel):
             raise ValueError("เลขทะเบียนนิติบุคคลต้องขึ้นต้นด้วย 0")
         if self.vendor_type == "INDIVIDUAL" and self.tax_id.startswith("0"):
             raise ValueError("บุคคลธรรมดาให้ใช้เลขประจำตัวประชาชน")
+        return self
+
+
+class VendorUpdate(StrictModel):
+    """แก้ไขข้อมูลผู้ประกอบการ (เลขประจำตัวผู้เสียภาษี/ประเภท แก้ไม่ได้ — เป็นตัวตนทางกฎหมาย).
+
+    ช่องที่ไม่ส่งมา = คงค่าเดิม · ส่ง null = ลบค่า (ใช้ model_fields_set แยกสองกรณี)
+    """
+    name_th: ThaiText | None = None
+    address_th: LongText | None = None
+    phone: Phone | None = None
+    email: EmailStr | None = None
+    bank_account: BankAccount | None = None
+
+    @model_validator(mode="after")
+    def _required_not_cleared(self) -> "VendorUpdate":
+        for f in ("name_th", "address_th"):
+            if f in self.model_fields_set and getattr(self, f) is None:
+                raise ValueError(f"{f} ห้ามเป็นค่าว่าง")
+        return self
+
+
+class SanctionCreate(StrictModel):
+    sanction_type: Literal["ABANDONED_WORK", "SUSPENDED"]
+    reference_no: Annotated[str, StringConstraints(min_length=3, max_length=100)]
+    effective_from: date
+    effective_to: date | None = None
+
+    @model_validator(mode="after")
+    def _date_order(self) -> "SanctionCreate":
+        if self.effective_to and self.effective_to < self.effective_from:
+            raise ValueError("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม")
         return self
 
 

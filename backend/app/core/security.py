@@ -32,6 +32,7 @@ class Perm(StrEnum):
     DOCUMENT_EXPORT = "document:export"
     LINE_SEND = "line:send"
     VENDOR_WRITE = "vendor:write"
+    VENDOR_SANCTION = "vendor:sanction"   # บันทึกผู้ทิ้งงาน — ผลทางกฎหมายสูง จึงจำกัดเฉพาะหัวหน้าเจ้าหน้าที่
     DASHBOARD_VIEW = "dashboard:view"
     TEMPLATE_MANAGE = "template:manage"
     TEMPLATE_VERIFY = "template:verify"
@@ -48,7 +49,8 @@ ROLE_PERMISSIONS: dict[str, frozenset[Perm]] = {
                                       Perm.DASHBOARD_VIEW}),
     "HEAD_OF_PROCUREMENT": frozenset({Perm.PROJECT_READ, Perm.PROJECT_WRITE, Perm.STEP_SUBMIT,
                                       Perm.STEP_APPROVE, Perm.DOCUMENT_EXPORT, Perm.LINE_SEND,
-                                      Perm.VENDOR_WRITE, Perm.DASHBOARD_VIEW, Perm.TEMPLATE_VERIFY}),
+                                      Perm.VENDOR_WRITE, Perm.VENDOR_SANCTION, Perm.DASHBOARD_VIEW,
+                                      Perm.TEMPLATE_VERIFY}),
     "EXECUTIVE": frozenset({Perm.PROJECT_READ, Perm.STEP_APPROVE, Perm.DOCUMENT_EXPORT, Perm.DASHBOARD_VIEW}),
     "AUDITOR": frozenset({Perm.PROJECT_READ, Perm.DASHBOARD_VIEW, Perm.AUDIT_READ}),
     "ADMIN": frozenset({Perm.PROJECT_READ, Perm.DASHBOARD_VIEW, Perm.TEMPLATE_MANAGE, Perm.USER_MANAGE,

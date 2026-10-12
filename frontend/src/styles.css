@@ -247,7 +247,7 @@ button.ghost:hover { background: var(--bg); color: var(--ink); }
 
 /* ---------- เมนูหลัก / ส่วนหัวหน้า ---------- */
 .nav { display: flex; gap: 4px; margin-right: auto; margin-left: 24px; }
-.nav button { background: none; color: var(--muted); padding: 6px 12px; }
+.nav button { background: none; color: var(--muted); padding: 6px 12px; white-space: nowrap; }
 .nav button:hover:not(:disabled) { background: var(--bg); color: var(--ink); }
 .nav button.on { background: var(--accent-soft); color: var(--accent); }
 
@@ -452,6 +452,68 @@ button.icon { padding: 4px 10px; }
 .status-bar { height: 8px; border-radius: 999px; background: var(--grid); overflow: hidden; }
 .status-bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
 
+
+/* ---------- ทะเบียนผู้ประกอบการ ---------- */
+.vendor-filters { grid-template-columns: 2fr 1fr 1fr; }
+.master-detail { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+.master-detail.has-panel { grid-template-columns: minmax(0, 1fr) 440px; }
+
+.vendor-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.vendor-row {
+  width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 14px 18px;
+  text-align: left; color: var(--ink); font-weight: 400; border: 1px solid transparent;
+}
+.vendor-row:hover:not(:disabled) { background: var(--card); border-color: var(--accent); }
+.vendor-row.selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent), var(--shadow); }
+.vendor-name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vendor-row .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.vendor-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+.vendor-stats strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.detail-panel { position: sticky; top: 16px; padding: 20px 22px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.back-mobile { display: none; }
+.detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.detail-head h3 { margin: 0; font-size: 18px; line-height: 1.4; }
+.detail-head p { margin: 0; font-size: 13px; }
+.vendor-detail h4 { margin: 20px 0 8px; font-size: 14px; }
+
+.mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.mini-stats div { background: var(--bg); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.mini-stats span { font-size: 12px; color: var(--muted); }
+.mini-stats strong { font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.info-list { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; margin: 0; font-size: 14px; }
+.info-list dt { color: var(--muted); }
+.info-list dd { margin: 0; overflow-wrap: anywhere; }
+.info-list.compact { margin-bottom: 12px; }
+.privacy-note { margin: 8px 0 0; }
+
+.history { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
+.history li + li { border-top: 1px solid var(--line); }
+.history-row {
+  width: 100%; display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px;
+  background: none; color: var(--ink); font-weight: 400; text-align: left; font-size: 13px; border-radius: 0;
+}
+.history-row:hover:not(:disabled) { background: var(--accent-soft); }
+.history-row .code { color: var(--accent); font-weight: 600; }
+.history-row small { display: block; color: var(--muted); font-size: 12px; }
+.history-row .num { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+
+.section-head { display: flex; justify-content: space-between; align-items: center; }
+.section-head h4 { margin-bottom: 8px; }
+.sanctions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.sanctions li { padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.sanctions li.active { background: var(--err-soft); color: var(--err); }
+.sanctions small { display: block; color: var(--muted); }
+
+button.danger { color: var(--err); border-color: #fecaca; }
+button.danger:hover:not(:disabled) { background: var(--err-soft); color: var(--err); }
+button.danger-solid { background: var(--err); }
+button.danger-solid:hover:not(:disabled) { background: #b91c1c; }
+.sanction-form { margin-top: 10px; padding: 14px; border: 1px solid #fecaca; border-radius: 12px; background: #fffafa; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.vendor-form h3 { margin: 0 0 14px; font-size: 18px; }
+
 /* ---------- มือถือ / แท็บเล็ต ---------- */
 @media (max-width: 820px) {
   .app { padding: 16px 16px 40px; }
@@ -459,7 +521,8 @@ button.icon { padding: 4px 10px; }
   .app-header .brand span, .app-header .user small { display: none; }
   .layout { grid-template-columns: 1fr; }
   .step-form { padding: 20px 16px; }
-  .nav { order: 3; width: 100%; margin: 0; }
+  .nav { order: 3; width: 100%; margin: 0; overflow-x: auto; scrollbar-width: none; }
+  section:has(.master-detail.has-panel) .vendor-filters { display: none; }
   .filters { grid-template-columns: 1fr 1fr; }
   .filters input { grid-column: 1 / -1; }
   .project-row { grid-template-columns: 1fr auto; gap: 8px 12px; }
@@ -485,4 +548,12 @@ button.icon { padding: 4px 10px; }
   .kpi-value { font-size: 18px; }
   .dash-grid { grid-template-columns: 1fr; }
   .chart-card { padding: 16px 14px; }
+  .vendor-filters { grid-template-columns: 1fr 1fr; }
+  .master-detail.has-panel { grid-template-columns: 1fr; }
+  .master-detail.has-panel .vendor-list { display: none; }   /* มือถือ: แสดงรายละเอียดอย่างเดียว */
+  .detail-panel { position: static; max-height: none; padding: 16px; }
+  .back-mobile { display: inline-block; }
+  .info-list { grid-template-columns: 1fr; gap: 0; }
+  .info-list dd { margin-bottom: 8px; }
+  .mini-stats strong { font-size: 13px; }
 }
