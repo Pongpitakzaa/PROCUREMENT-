@@ -13,13 +13,57 @@ import { isVisible, toPayload, validateForm } from "../validation";
 interface Props {
   projectId: number;
   stepCode: string;
+  canApprove: boolean;
   onSubmitted: () => void;
+}
+
+/** อนุมัติ / ส่งกลับแก้ไข — ผู้เสนอรายการอนุมัติของตนเองไม่ได้ (SoD ตรวจที่ server) · ส่งกลับต้องระบุเหตุผล */
+function DecisionPanel({ projectId, stepCode, onDone }: { projectId: number; stepCode: string; onDone: () => void }) {
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needReason, setNeedReason] = useState(false);
+
+  async function decide(approve: boolean) {
+    if (!approve && !comment.trim()) {
+      setNeedReason(true);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/projects/${projectId}/steps/${stepCode}/decision`, {
+        method: "POST", body: JSON.stringify({ approve, comment: comment.trim() || null }),
+      });
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? [err.message, ...err.violations.map((v) => v.message)].join(" — ") : "บันทึกผลไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="decision">
+      <h4>พิจารณาอนุมัติ</h4>
+      {error && <p role="alert" className="banner-error">{error}</p>}
+      <div className={`field ${needReason && !comment.trim() ? "has-error" : ""}`}>
+        <label htmlFor="decision-comment">ความเห็น (ต้องระบุเมื่อส่งกลับแก้ไข)</label>
+        <textarea id="decision-comment" rows={2} maxLength={1000} value={comment} onChange={(e) => setComment(e.target.value)} />
+        {needReason && !comment.trim() && <small role="alert" className="error">กรุณาระบุเหตุผลที่ส่งกลับแก้ไข</small>}
+      </div>
+      <div className="form-actions">
+        <button type="button" className="ghost" disabled={busy} onClick={() => decide(false)}>ส่งกลับแก้ไข</button>
+        <button type="button" disabled={busy} onClick={() => decide(true)}>{busy ? "กำลังบันทึก…" : "อนุมัติ"}</button>
+      </div>
+    </div>
+  );
 }
 
 interface Person { personnel_id: number; full_name_th: string; position_th: string }
 interface VendorHit { vendor_id: number; tax_id: string; name_th: string }
 
-export function DynamicStepForm({ projectId, stepCode, onSubmitted }: Props) {
+export function DynamicStepForm({ projectId, stepCode, canApprove, onSubmitted }: Props) {
   const [form, setForm] = useState<StepFormResponse | null>(null);
   const [values, setValues] = useState<FormValues>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -114,6 +158,9 @@ export function DynamicStepForm({ projectId, stepCode, onSubmitted }: Props) {
       {!locked && (
         <button type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "บันทึกและส่งพิจารณา"}</button>
       )}
+      {form.step.status === "SUBMITTED" && (canApprove
+        ? <DecisionPanel projectId={projectId} stepCode={stepCode} onDone={onSubmitted} />
+        : <p className="muted small">ส่งพิจารณาแล้ว — รอหัวหน้าเจ้าหน้าที่หรือผู้มีอำนาจอนุมัติ</p>)}
     </form>
   );
 }

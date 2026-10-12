@@ -6,3 +6,4 @@ __pycache__/
 backend/storage/
 node_modules/
 frontend/dist/
+frontend/dist-demo/

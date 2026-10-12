@@ -28,8 +28,14 @@ function serviceWorker(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), serviceWorker()],
-  server: { proxy: apiProxy },
-  preview: { proxy: apiProxy },   // `vite preview` = ทดสอบแบบ production (มี service worker) บนมือถือ/เครื่องจำลอง
-});
+export default defineConfig(({ mode }) => mode === "demo"
+  // เวอร์ชันสาธิตบนเว็บ (npm run build:demo): ไฟล์ JS ไฟล์เดียว + เซิร์ฟเวอร์จำลอง ไม่มี service worker
+  ? {
+      plugins: [react()],
+      build: { outDir: "dist-demo", assetsInlineLimit: 1e7, rollupOptions: { output: { inlineDynamicImports: true } } },
+    }
+  : {
+      plugins: [react(), serviceWorker()],
+      server: { proxy: apiProxy },
+      preview: { proxy: apiProxy },   // `vite preview` = ทดสอบแบบ production (มี service worker) บนมือถือ/เครื่องจำลอง
+    });

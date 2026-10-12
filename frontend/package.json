@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:demo": "tsc --noEmit && vite build --mode demo && node scripts/build-demo-page.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

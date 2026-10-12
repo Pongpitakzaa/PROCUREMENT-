@@ -7,10 +7,11 @@ import type { ProjectDetail } from "../types";
 
 interface Props {
   projectId: number;
+  canApprove: boolean;
   onBack: () => void;
 }
 
-export function ProjectDetailPage({ projectId, onBack }: Props) {
+export function ProjectDetailPage({ projectId, canApprove, onBack }: Props) {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
                 key={`${activeStep}-${project.row_version}`}
                 projectId={project.project_id}
                 stepCode={activeStep}
+                canApprove={canApprove}
                 onSubmitted={load}
               />
             ) : (

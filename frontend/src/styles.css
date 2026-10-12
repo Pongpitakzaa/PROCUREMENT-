@@ -774,3 +774,20 @@ body { -webkit-tap-highlight-color: rgb(37 99 235 / 0.12); }
   .head-actions { flex-wrap: wrap; }
   .head-actions > * { flex: 1 1 100%; }
 }
+
+/* แผงพิจารณาอนุมัติในขั้นตอนที่ส่งพิจารณาแล้ว */
+.decision { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.decision h4 { margin: 0 0 8px; }
+
+/* เวอร์ชันสาธิต */
+.demo-accounts { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.demo-title { margin: 0; font-weight: 600; font-size: 14px; }
+.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.login .demo-user { margin: 0; padding: 10px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  text-align: left; background: var(--accent-soft); color: var(--ink); border: 1px solid transparent; }
+.login .demo-user:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
+.demo-user strong { color: var(--accent); }
+.demo-user small { font-weight: 400; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.demo-accounts code { background: var(--bg); padding: 1px 6px; border-radius: 6px; }
+.demo-banner { margin: 0; padding: 6px 16px; font-size: 13px; text-align: center; background: #fffbeb; color: #92400e; border-bottom: 1px solid #fcd34d; }
+@media (max-width: 420px) { .demo-grid { grid-template-columns: 1fr; } }

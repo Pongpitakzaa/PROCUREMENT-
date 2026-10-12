@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
+import { DemoAccounts, DemoBanner } from "./components/DemoNotice";
 import { AppStatusBar, InstallButton } from "./components/MobileApp";
+import { DEMO_PASSWORD, IS_DEMO } from "./demo/accounts";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
@@ -47,6 +49,17 @@ export function App() {
     api<MethodInfo[]>("/api/methods").then(setMethods).catch(() => setMethods([]));
   }, [authed]);
 
+  async function signIn(username: string, password: string) {
+    try {
+      await login(username, password);
+      setError(null);
+      setView({ name: "list" });
+      setAuthed(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
+    }
+  }
+
   if (!authed) {
     return (
       <>
@@ -54,17 +67,10 @@ export function App() {
       <div className="login-page">
         <form
           className="login card"
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            try {
-              await login(String(f.get("username")), String(f.get("password")));
-              setError(null);
-              setView({ name: "list" });
-              setAuthed(true);
-            } catch (err) {
-              setError(err instanceof ApiError ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
-            }
+            void signIn(String(f.get("username")), String(f.get("password")));
           }}
         >
           <div className="brand">◆ e-Procurement</div>
@@ -76,6 +82,7 @@ export function App() {
           <input id="password" name="password" type="password" autoComplete="current-password" required />
           <button type="submit">เข้าสู่ระบบ</button>
           <InstallButton className="ghost install-login" />
+          {IS_DEMO && <DemoAccounts onPick={(u) => void signIn(u, DEMO_PASSWORD)} />}
         </form>
       </div>
       </>
@@ -91,6 +98,7 @@ export function App() {
   return (
     <>
       <AppStatusBar />
+      {IS_DEMO && <DemoBanner />}
       <header className="app-header">
         <div className="brand">◆ e-Procurement <span>· ระบบจัดซื้อจัดจ้าง</span></div>
         <nav className="nav">
@@ -151,7 +159,7 @@ export function App() {
           <ProjectCreatePage methods={methods} onCancel={toList}
                              onCreated={(projectId) => setView({ name: "detail", projectId })} />
         )}
-        {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} onBack={toList} />}
+        {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} canApprove={can("step:approve")} onBack={toList} />}
         {view.name === "dashboard" && <DashboardPage />}
         {view.name === "admin" && me && <AdminPage permissions={me.permissions} userId={me.user_id} />}
         {view.name === "vendors" && (
