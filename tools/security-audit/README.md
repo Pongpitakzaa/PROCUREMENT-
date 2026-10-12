@@ -50,6 +50,21 @@ AUDIT_DB_DSN="dbname=procurement_test" AUDIT_PASSWORD='…' ./run.sh --no-browse
 
 `run.sh` คืนค่า exit code 1 เมื่อมีข้อไม่ผ่าน จึงใช้ใน CI ได้ · รันซ้ำบนฐานข้อมูลเดิมได้ (แต่ละรอบใช้รหัสอ้างอิงไม่ซ้ำกัน)
 
+## CI (GitHub Actions)
+
+`.github/workflows/security-audit.yml` รันชุดนี้ในทุก Pull Request (และทุก push เข้า `main`):
+PostgreSQL 16 (service container) → `ci.sh` → อัปโหลด `out/` เป็น artifact **security-audit-report**
+
+`ci.sh` ทำทุกขั้นในสคริปต์เดียวเพื่อให้รันในเครื่องได้เหมือน CI ทุกประการ:
+สร้าง schema บนฐานข้อมูลว่าง → **สุ่ม secret ใหม่ทุกรอบ** (JWT, กุญแจเข้ารหัส, รหัสผ่านบัญชีทดสอบ — ไม่ต้องตั้ง repository secret)
+→ สร้างบัญชีทดสอบ → เปิด API + หน้าเว็บ → `run.sh` → เขียนสรุปลง Job Summary และ annotation ของข้อที่ไม่ผ่าน
+
+```bash
+# รันแบบ CI ในเครื่อง (ฐานข้อมูลต้องว่าง และชื่อมีคำว่า test)
+createdb procurement_ci_test
+PGHOST=localhost PGUSER=… PGPASSWORD=… PGDATABASE=procurement_ci_test API_PORT=8002 WEB_PORT=5174 tools/security-audit/ci.sh
+```
+
 ## ไฟล์
 
 | ไฟล์ | หน้าที่ |
@@ -59,7 +74,8 @@ AUDIT_DB_DSN="dbname=procurement_test" AUDIT_PASSWORD='…' ./run.sh --no-browse
 | `api_db_audit.py` | กลุ่ม A, B, C |
 | `browser_audit.mjs` | กลุ่ม D (Playwright) |
 | `build_report.py` | สร้าง `out/report.html` จาก `out/results.json` |
-| `run.sh` | รันทั้งหมดตามลำดับ |
+| `run.sh` | รันทั้งหมดตามลำดับ (ใช้กับระบบที่เปิดไว้แล้ว) |
+| `ci.sh` | รันแบบครบวงจรบนฐานข้อมูลว่าง (ใช้ใน GitHub Actions) |
 
 ## การเพิ่มกรณีทดสอบ
 
