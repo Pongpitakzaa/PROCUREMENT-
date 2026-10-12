@@ -37,6 +37,10 @@ export async function login(username: string, password: string): Promise<void> {
 
 export const isLoggedIn = () => accessToken !== null;
 
+export function logout(): void {
+  accessToken = null;
+}
+
 /** ดาวน์โหลดเอกสาร (DOCX/PDF/XLSX) โดยไม่เปิดหน้าใหม่ */
 export async function exportDocument(projectId: number, stepCode: string, format: "docx" | "pdf" | "xlsx") {
   const blob = await api<Blob>(`/api/projects/${projectId}/steps/${stepCode}/export?format=${format}`, {
