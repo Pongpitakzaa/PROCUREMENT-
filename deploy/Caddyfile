@@ -1,0 +1,52 @@
+# ค่าจาก deploy/.env: DOMAIN, CADDY_TLS
+#   CADDY_TLS=admin@agency.go.th                   → ขอใบรับรอง Let's Encrypt อัตโนมัติ (โดเมนต้องเข้าถึงได้จากอินเทอร์เน็ต)
+#   CADDY_TLS=/certs/fullchain.pem /certs/privkey.pem → ใช้ใบรับรองของหน่วยงาน (วางไฟล์ใน deploy/certs/)
+#   CADDY_TLS=internal                            → ใบรับรองชั่วคราว (ทดสอบเท่านั้น เบราว์เซอร์จะเตือน)
+{
+	admin off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$DOMAIN} {
+	tls {$CADDY_TLS}
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+			X-Frame-Options DENY
+		}
+		@immutable path /assets/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		# หน้าแรก / service worker / manifest ต้องตรวจเวอร์ชันใหม่ทุกครั้ง (มือถือได้อัปเดตทันที)
+		@revalidate path / /index.html /sw.js /manifest.webmanifest
+		header @revalidate Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# http:// → https:// ทำให้อัตโนมัติโดย Caddy

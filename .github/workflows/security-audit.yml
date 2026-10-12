@@ -1,0 +1,92 @@
+name: Security & Validation Audit
+
+# รันชุดทดสอบความปลอดภัย/การตรวจสอบข้อมูล (tools/security-audit) กับระบบที่รันจริงในทุก PR
+# ขั้นตอนหลักอยู่ใน tools/security-audit/ci.sh — รันในเครื่องได้เหมือนกันทุกประการ
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit (API + DB + browser)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        # ฐานข้อมูลชั่วคราวของ job นี้เท่านั้น (ถูกทิ้งเมื่อ job จบ) — ไม่ใช่ข้อมูลลับ
+        env:
+          POSTGRES_USER: audit
+          POSTGRES_PASSWORD: audit-ci-only
+          POSTGRES_DB: procurement_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U audit -d procurement_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: audit
+      PGPASSWORD: audit-ci-only
+      PGDATABASE: procurement_test
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            tools/security-audit/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Install frontend and audit dependencies
+        run: |
+          npm ci --prefix frontend --no-audit --no-fund
+          npm ci --prefix tools/security-audit --no-audit --no-fund
+
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('tools/security-audit/package-lock.json') }}
+
+      - name: Install Chromium for Playwright
+        working-directory: tools/security-audit
+        run: npx playwright install --with-deps chromium
+
+      - name: Run security & validation audit
+        run: tools/security-audit/ci.sh
+        env:
+          PYTHON: python
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: tools/security-audit/out/
+          retention-days: 14
+          if-no-files-found: warn
