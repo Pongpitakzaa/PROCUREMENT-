@@ -1,0 +1,235 @@
+/**
+ * Dynamic Form: สร้างฟอร์มจาก FieldSpec ที่ backend ส่งมา (ไม่ hard-code ฟอร์มรายขั้นตอนใน UI)
+ * → เพิ่ม/แก้ช่องข้อมูลตามแบบฟอร์มกรมบัญชีกลางที่ backend ที่เดียว หน้าจอเปลี่ยนตามอัตโนมัติ
+ *
+ * Validation 2 จังหวะ: (1) ตรวจทันทีฝั่ง client เพื่อ UX  (2) แสดงผลตรวจของ server (แหล่งความจริง)
+ * React escape ข้อความทุกจุดอัตโนมัติ — ห้ามใช้ dangerouslySetInnerHTML กับข้อมูลจากผู้ใช้/เซิร์ฟเวอร์
+ */
+import { useEffect, useMemo, useState } from "react";
+import { ApiError, api } from "../api";
+import type { FieldSpec, FormValues, StepFormResponse, Violation } from "../types";
+import { isVisible, toPayload, validateForm } from "../validation";
+
+interface Props {
+  projectId: number;
+  stepCode: string;
+  onSubmitted: () => void;
+}
+
+interface Person { personnel_id: number; full_name_th: string; position_th: string }
+interface VendorHit { vendor_id: number; tax_id: string; name_th: string }
+
+export function DynamicStepForm({ projectId, stepCode, onSubmitted }: Props) {
+  const [form, setForm] = useState<StepFormResponse | null>(null);
+  const [values, setValues] = useState<FormValues>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [serverErrors, setServerErrors] = useState<Violation[]>([]);
+  const [banner, setBanner] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+
+  useEffect(() => {
+    api<StepFormResponse>(`/api/projects/${projectId}/steps/${stepCode}/form`).then((f) => {
+      setForm(f);
+      setValues(f.values ?? {});
+      if (f.fields.some((x) => x.type === "personnel_multi")) api<Person[]>("/api/personnel").then(setPeople);
+    });
+  }, [projectId, stepCode]);
+
+  const clientErrors = useMemo(
+    () => (form ? validateForm(form.fields, values, form.context) : {}),
+    [form, values],
+  );
+
+  if (!form) return <p>กำลังโหลดแบบฟอร์ม…</p>;
+  const locked = !["PENDING", "IN_PROGRESS", "REJECTED"].includes(form.step.status);
+
+  const set = (name: string, v: FormValues[string]) => {
+    setValues((prev) => ({ ...prev, [name]: v }));
+    setServerErrors((prev) => prev.filter((e) => e.field !== name));
+  };
+
+  const errorFor = (spec: FieldSpec): string | undefined =>
+    (touched[spec.name] ? clientErrors[spec.name] : undefined) ??
+    serverErrors.find((e) => e.field === spec.name)?.message;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form) return;
+    setTouched(Object.fromEntries(form.fields.map((f) => [f.name, true])));
+    if (Object.keys(clientErrors).length > 0) {
+      setBanner("กรุณาแก้ไขข้อมูลที่ไม่ถูกต้องก่อนบันทึก");
+      return;
+    }
+    setBusy(true);
+    setBanner(null);
+    try {
+      await api(`/api/projects/${projectId}/steps/${stepCode}/submit`, {
+        method: "POST",
+        body: JSON.stringify({ data: toPayload(form.fields, values), row_version: form.row_version }),
+      });
+      onSubmitted();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setServerErrors(err.violations);
+        // ข้อผิดพลาดที่ไม่ผูกกับช่องใด (เช่น ลำดับขั้นตอน, SoD) แสดงเป็นแถบด้านบน
+        const general = err.violations.filter((v) => !v.field).map((v) => v.message);
+        setBanner([err.message, ...general].join(" — "));
+      } else setBanner("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="step-form">
+      <h3>{form.step.name_th}</h3>
+      {form.step.legal_ref && <p className="legal">อ้างอิง: {form.step.legal_ref}</p>}
+      {banner && <div role="alert" className="banner-error">{banner}</div>}
+
+      {form.fields.filter((f) => isVisible(f, values)).map((spec) => {
+        const err = errorFor(spec);
+        const id = `f-${spec.name}`;
+        return (
+          <div key={spec.name} className={`field ${err ? "has-error" : ""}`}>
+            <label htmlFor={id}>
+              {spec.label_th}
+              {(spec.required || spec.show_if) && spec.type !== "checkbox" && <span aria-hidden> *</span>}
+            </label>
+            <FieldInput
+              id={id}
+              spec={spec}
+              value={values[spec.name]}
+              disabled={locked}
+              people={people}
+              onChange={(v) => set(spec.name, v)}
+              onBlur={() => setTouched((t) => ({ ...t, [spec.name]: true }))}
+            />
+            {spec.help_th && <small className="help">{spec.help_th}</small>}
+            {err && <small role="alert" className="error">{err}</small>}
+          </div>
+        );
+      })}
+
+      {!locked && (
+        <button type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "บันทึกและส่งพิจารณา"}</button>
+      )}
+    </form>
+  );
+}
+
+interface InputProps {
+  id: string;
+  spec: FieldSpec;
+  value: FormValues[string];
+  disabled: boolean;
+  people: Person[];
+  onChange: (v: FormValues[string]) => void;
+  onBlur: () => void;
+}
+
+function FieldInput({ id, spec, value, disabled, people, onChange, onBlur }: InputProps) {
+  const common = { id, disabled, onBlur };
+  switch (spec.type) {
+    case "textarea":
+      return <textarea {...common} rows={4} maxLength={spec.max_length}
+                       value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
+    case "select":
+      return (
+        <select {...common} value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)}>
+          <option value="">— เลือก —</option>
+          {spec.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      );
+    case "checkbox":
+      return <input {...common} type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />;
+    case "integer":
+      return <input {...common} type="number" inputMode="numeric" step={1} min={spec.min} max={spec.max}
+                    value={value === undefined ? "" : String(value)}
+                    onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))} />;
+    case "money":
+    case "percent":
+      // เก็บเป็น string ตามที่พิมพ์ (ไม่แปลงเป็น number) เพื่อส่งให้ backend เป็น Decimal ตรงตัว
+      return <input {...common} type="text" inputMode="decimal" placeholder="0.00"
+                    value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value.replace(/,/g, ""))} />;
+    case "date":
+      return <input {...common} type="date" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
+    case "tax_id":
+      return <input {...common} type="text" inputMode="numeric" maxLength={13} placeholder="เลข 13 หลัก"
+                    value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} />;
+    case "personnel_multi":
+      return <PersonnelPicker {...common} people={people} value={(value as number[]) ?? []} onChange={onChange} />;
+    case "vendor_multi":
+      return <VendorPicker value={(value as number[]) ?? []} disabled={disabled} onChange={onChange} />;
+    default:
+      return <input {...common} type="text" maxLength={spec.max_length}
+                    value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
+  }
+}
+
+/** เลือกกรรมการตามลำดับ: คนแรก = ประธาน (ตรงกับการจัดลำดับในคำสั่งแต่งตั้ง) */
+function PersonnelPicker({ people, value, disabled, onChange, onBlur }: {
+  people: Person[]; value: number[]; disabled: boolean; onChange: (v: number[]) => void; onBlur: () => void;
+}) {
+  const toggle = (pid: number) =>
+    onChange(value.includes(pid) ? value.filter((x) => x !== pid) : [...value, pid]);
+  return (
+    <ul className="picker" onBlur={onBlur}>
+      {people.map((p) => {
+        const idx = value.indexOf(p.personnel_id);
+        return (
+          <li key={p.personnel_id}>
+            <label>
+              <input type="checkbox" disabled={disabled} checked={idx >= 0} onChange={() => toggle(p.personnel_id)} />
+              {p.full_name_th} — {p.position_th}
+              {idx >= 0 && <em> ({value.length === 1 ? "ผู้ตรวจรับ" : idx === 0 ? "ประธาน" : "กรรมการ"})</em>}
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function VendorPicker({ value, disabled, onChange }: {
+  value: number[]; disabled: boolean; onChange: (v: number[]) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<VendorHit[]>([]);
+  const [chosen, setChosen] = useState<VendorHit[]>([]);
+
+  useEffect(() => {
+    if (q.trim().length < 2) return setHits([]);
+    const t = setTimeout(() => api<VendorHit[]>(`/api/vendors?q=${encodeURIComponent(q)}`).then(setHits), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const add = (v: VendorHit) => {
+    if (value.includes(v.vendor_id)) return;
+    setChosen([...chosen, v]);
+    onChange([...value, v.vendor_id]);
+  };
+  const remove = (id: number) => {
+    setChosen(chosen.filter((c) => c.vendor_id !== id));
+    onChange(value.filter((x) => x !== id));
+  };
+
+  return (
+    <div className="vendor-picker">
+      <ul>
+        {chosen.map((c) => (
+          <li key={c.vendor_id}>
+            {c.name_th} ({c.tax_id})
+            {!disabled && <button type="button" onClick={() => remove(c.vendor_id)}>ลบ</button>}
+          </li>
+        ))}
+      </ul>
+      {!disabled && (
+        <>
+          <input type="search" placeholder="ค้นหาชื่อหรือเลขผู้เสียภาษี" value={q} onChange={(e) => setQ(e.target.value)} />
+          <ul>{hits.map((h) => <li key={h.vendor_id}><button type="button" onClick={() => add(h)}>+ {h.name_th}</button></li>)}</ul>
+        </>
+      )}
+    </div>
+  );
+}
