@@ -19,6 +19,7 @@
 | 2 | Database Schema (3NF) | [docs/02-database-schema.md](docs/02-database-schema.md) · [database/schema.sql](database/schema.sql) |
 | 3 | Security & Validation Logic | [docs/03-security-validation.md](docs/03-security-validation.md) |
 | 4 | การนำแบบฟอร์มกรมบัญชีกลางเข้าระบบ | [docs/04-cgd-templates.md](docs/04-cgd-templates.md) |
+| 5 | ใช้งานบน iOS / Android (ติดตั้งเป็นแอป) | [docs/05-mobile-ios-android.md](docs/05-mobile-ios-android.md) |
 
 ## โค้ดหลักที่ควรอ่าน
 
@@ -74,4 +75,4 @@ cd tools/security-audit && AUDIT_DB_DSN="dbname=procurement_test" AUDIT_PASSWORD
 - **ไม่มีไฟล์แบบฟอร์มกรมบัญชีกลางใน repo** — ต้องดาวน์โหลดจาก gprocurement.go.th และลงทะเบียนตาม docs/04
 - ค่าเพดานวงเงินและเลขข้ออ้างอิงระเบียบต้องให้เจ้าหน้าที่พัสดุ/นิติกรทบทวนกับกฎกระทรวงและหนังสือเวียนฉบับล่าสุด
 - ระบบนี้ไม่ได้เชื่อมต่อกับระบบ e-GP โดยตรง (ไม่มี API สาธารณะ) — เก็บเลขโครงการ e-GP เพื่ออ้างอิง
-- Frontend เป็นตัวอย่างหน้าหลัก (login, workflow, dynamic form) ยังไม่มีหน้า dashboard/admin เต็มรูปแบบ
+- แอปบนมือถือเป็น PWA (ติดตั้งจากเบราว์เซอร์) ยังไม่ได้ทำเป็นแอปใน App Store / Google Play และไม่รองรับการบันทึกข้อมูลขณะออฟไลน์ — ดู docs/05

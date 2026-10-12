@@ -698,3 +698,79 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
   .template-row { flex-direction: column; }
   .template-side { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
 }
+
+/* ---------- ใช้งานแบบแอปบน iOS / Android ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { -webkit-tap-highlight-color: rgb(37 99 235 / 0.12); }
+
+/* viewport-fit=cover → เว้นขอบรอยบาก/Dynamic Island/แถบ Home ของ iPhone และแถบนำทางของ Android */
+.app-header {
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+}
+.app {
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+  padding-bottom: max(48px, calc(env(safe-area-inset-bottom) + 24px));
+}
+.login-page { padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+
+.app-status {
+  margin: 0;
+  padding: 8px 16px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  font-size: 14px;
+  text-align: center;
+  position: sticky;   /* เห็นตลอดแม้เลื่อนหน้า */
+  top: 0;
+  z-index: 30;
+}
+.app-status.offline { background: #fffbeb; color: #92400e; border-bottom: 1px solid #fcd34d; }
+.app-status.update { background: var(--accent-soft); color: var(--ink); border-bottom: 1px solid var(--line); }
+.app-status button { padding: 4px 12px; margin-left: 8px; font-size: 13px; }
+/* แถบสถานะกินขอบบนแทนแถบหัว จึงไม่ต้องเว้นซ้ำ */
+.app-status + .app-header { padding-top: 12px; }
+
+.install-login { margin-top: 4px; }
+.install-steps { margin: 0 0 12px; padding-left: 22px; line-height: 2; }
+.share-glyph { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; line-height: 1.6; }
+
+/* จอสัมผัส: เป้าหมายแตะอย่างน้อย 44px (Apple HIG / WCAG 2.5.5) และตัวอักษรช่องกรอก ≥ 16px
+   (iOS Safari ซูมหน้าจออัตโนมัติเมื่อแตะช่องที่ตัวอักษรเล็กกว่า 16px) */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+  input:not([type="checkbox"]):not([type="radio"]), select { min-height: 44px; }
+  button, .user-menu summary { min-height: 44px; }
+  input[type="checkbox"] { width: 22px; height: 22px; }
+  .nav button { padding: 6px 14px; }
+  .user-menu .menu button { padding: 12px 10px; }
+}
+
+@media (max-width: 820px) {
+  .app-header {
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .app-status + .app-header { padding-top: 10px; }
+  .app {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
+
+/* เปิดจากไอคอนบนหน้าจอโฮม: ตรึงแถบหัวไว้ด้านบนเหมือนแอป (ไม่มีแถบที่อยู่ของเบราว์เซอร์ให้เลื่อนกลับ) */
+@media (display-mode: standalone) {
+  .app-header { position: sticky; top: 0; z-index: 20; }
+  body { overscroll-behavior-y: none; }
+}
+
+/* มือถือจอเล็ก (iPhone SE / Android 360px) */
+@media (max-width: 420px) {
+  .filters { grid-template-columns: 1fr; }
+  .user-menu .who { display: none; }          /* เหลือรูปย่อ — ชื่อเต็มอยู่ในเมนู */
+  .kpi-value { font-size: 16px; overflow-wrap: anywhere; }
+  .head-actions { flex-wrap: wrap; }
+  .head-actions > * { flex: 1 1 100%; }
+}

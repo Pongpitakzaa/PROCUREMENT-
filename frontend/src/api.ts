@@ -17,7 +17,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
 
-  const res = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  } catch {
+    // มือถือเสียสัญญาณบ่อย — แจ้งเป็นข้อความที่ผู้ใช้เข้าใจแทน "Failed to fetch"
+    throw new ApiError(0, navigator.onLine === false
+      ? "ไม่มีการเชื่อมต่ออินเทอร์เน็ต — ข้อมูลยังไม่ถูกบันทึก กรุณาลองใหม่เมื่อกลับมาออนไลน์"
+      : "ติดต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่อีกครั้ง", []);
+  }
   if (res.status === 401) accessToken = null;
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: `HTTP ${res.status}`, violations: [] }));
@@ -50,8 +58,11 @@ export function logout(): void {
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.append(a);   // Firefox ต้องอยู่ใน DOM
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // iOS Safari อ่าน blob หลัง click แบบ async — ถ้า revoke ทันทีจะได้ไฟล์ว่าง/ไม่เปิดหน้าตัวอย่าง
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 /** ดาวน์โหลดเอกสาร (DOCX/PDF/XLSX) โดยไม่เปิดหน้าใหม่ */

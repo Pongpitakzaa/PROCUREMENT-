@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
+import { AppStatusBar, InstallButton } from "./components/MobileApp";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
@@ -48,6 +49,8 @@ export function App() {
 
   if (!authed) {
     return (
+      <>
+      <AppStatusBar />
       <div className="login-page">
         <form
           className="login card"
@@ -72,8 +75,10 @@ export function App() {
           <label htmlFor="password">รหัสผ่าน</label>
           <input id="password" name="password" type="password" autoComplete="current-password" required />
           <button type="submit">เข้าสู่ระบบ</button>
+          <InstallButton className="ghost install-login" />
         </form>
       </div>
+      </>
     );
   }
 
@@ -85,6 +90,7 @@ export function App() {
 
   return (
     <>
+      <AppStatusBar />
       <header className="app-header">
         <div className="brand">◆ e-Procurement <span>· ระบบจัดซื้อจัดจ้าง</span></div>
         <nav className="nav">
@@ -117,8 +123,9 @@ export function App() {
               <span className="who"><span>{me.full_name_th}</span><small>{me.roles.map((r) => ROLE_TH[r] ?? r).join(", ")}</small></span>
             </summary>
             <div className="menu card" role="menu">
-              <div className="menu-head muted small">{me.username}</div>
+              <div className="menu-head muted small">{me.full_name_th} · {me.username}</div>
               <button type="button" role="menuitem" onClick={() => { closeMenu(); setChangingPw(true); }}>เปลี่ยนรหัสผ่าน</button>
+              <InstallButton role="menuitem" onBeforeOpen={closeMenu} />
               <button type="button" role="menuitem" onClick={() => { closeMenu(); logout(); setAuthed(false); setMe(null); }}>
                 ออกจากระบบ
               </button>
