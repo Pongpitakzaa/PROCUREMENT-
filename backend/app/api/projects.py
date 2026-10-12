@@ -1,17 +1,18 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_db, like_pattern
 from app.core.security import Perm, require
-from app.models import (MethodJustification, ProcurementMethod, Project, ProjectItem, ProjectStep, User,
+from app.models import (Department, MethodJustification, ProcurementMethod, Project, ProjectItem, ProjectStep, User,
                         WorkflowStep)
 from app.rules import procurement_rules as pr
 from app.rules.step_forms import form_for
+from app.rules.validators import clean_text
 from app.schemas import ProjectCreate, StepDecisionIn, StepSubmitIn
 from app.services import workflow_service as wf
 from app.services.audit_service import write_audit
@@ -123,6 +124,62 @@ def create_project(body: ProjectCreate, request: Request, db: DB,
     write_audit(db, action="CREATE", user_id=user.user_id, request=request, entity_table="projects",
                 entity_id=project.project_id, new=body.model_dump(exclude={"items"}))
     return {"project_id": project.project_id, "warnings": _violations_out(warnings)}
+
+
+@router.get("/departments")
+def list_departments(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))]) -> list[dict]:
+    return [{"department_id": d.department_id, "code": d.code, "name_th": d.name_th}
+            for d in db.scalars(select(Department).order_by(Department.name_th))]
+
+
+ProjectStatus = Literal["DRAFT", "IN_PROGRESS", "AWARDED", "CONTRACTED", "CANCELLED", "COMPLETED"]
+
+
+@router.get("/projects")
+def list_projects(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))],
+                  fiscal_year: Annotated[int | None, Query(ge=2560, le=2700)] = None,
+                  status: ProjectStatus | None = None,
+                  method: Literal["E_MARKET", "E_BIDDING", "SELECTION", "SPECIFIC"] | None = None,
+                  q: Annotated[str | None, Query(max_length=100)] = None,
+                  limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict]:
+    """รายการโครงการ + ขั้นตอนปัจจุบัน (ขั้นแรกที่ยังไม่อนุมัติ) สำหรับหน้ารายการ."""
+    stmt = select(Project).order_by(Project.created_at.desc()).limit(limit)
+    if fiscal_year:
+        stmt = stmt.where(Project.fiscal_year_be == fiscal_year)
+    if status:
+        stmt = stmt.where(Project.status == status)
+    if method:
+        stmt = stmt.join(ProcurementMethod).where(ProcurementMethod.code == method)
+    if q and q.strip():
+        pattern = like_pattern(clean_text(q))
+        stmt = stmt.where(Project.title_th.ilike(pattern, escape="\\")
+                          | Project.project_code.ilike(pattern, escape="\\"))
+    projects = db.scalars(stmt).unique().all()
+
+    # ขั้นตอนของทุกโครงการในหน้าเดียวดึงครั้งเดียว (ไม่ query ต่อแถว)
+    steps_by_project: dict[int, list[ProjectStep]] = {}
+    if projects:
+        rows = db.scalars(select(ProjectStep).join(WorkflowStep)
+                          .where(ProjectStep.project_id.in_([p.project_id for p in projects]))
+                          .order_by(ProjectStep.project_id, WorkflowStep.step_order))
+        for ps in rows:
+            steps_by_project.setdefault(ps.project_id, []).append(ps)
+
+    out = []
+    for p in projects:
+        steps = steps_by_project.get(p.project_id, [])
+        done = sum(s.status in ("APPROVED", "SKIPPED") for s in steps)
+        current = next((s for s in steps if s.status not in ("APPROVED", "SKIPPED")), None)
+        out.append({
+            "project_id": p.project_id, "project_code": p.project_code, "title_th": p.title_th,
+            "fiscal_year_be": p.fiscal_year_be, "department_name_th": p.department.name_th,
+            "method": {"code": p.method.code, "name_th": p.method.name_th},
+            "budget_amount": p.budget_amount, "status": p.status,
+            "progress": {"done": done, "total": len(steps)},
+            "current_step": ({"code": current.step.code, "name_th": current.step.name_th, "status": current.status}
+                             if current else None),
+        })
+    return out
 
 
 @router.get("/projects/{project_id}")

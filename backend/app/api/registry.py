@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.crypto import encrypt_field
-from app.core.database import get_db
+from app.core.database import get_db, like_pattern
 from app.core.security import Perm, require
 from app.models import NotificationChannel, Personnel, User, Vendor
 from app.rules.validators import clean_text
@@ -38,8 +38,7 @@ def create_vendor(body: VendorCreate, request: Request, db: DB,
 @router.get("/vendors")
 def search_vendors(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))],
                    q: Annotated[str, Query(min_length=2, max_length=100)]) -> list[dict]:
-    # ILIKE ผ่าน bind parameter; escape wildcard ของผู้ใช้เพื่อไม่ให้ค้นแบบ % ทั้งตาราง
-    pattern = "%" + clean_text(q).replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_") + "%"
+    pattern = like_pattern(clean_text(q))
     rows = db.scalars(select(Vendor).where((Vendor.tax_id == q) | Vendor.name_th.ilike(pattern, escape="\\"))
                       .limit(20))
     return [{"vendor_id": v.vendor_id, "tax_id": v.tax_id, "name_th": v.name_th} for v in rows]

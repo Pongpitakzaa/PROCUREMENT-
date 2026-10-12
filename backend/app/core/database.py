@@ -23,6 +23,11 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def like_pattern(text: str) -> str:
+    """สร้าง pattern สำหรับ ILIKE ... ESCAPE '\\' โดย escape wildcard ของผู้ใช้ (กันค้น % ทั้งตาราง)."""
+    return "%" + text.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_") + "%"
+
+
 def get_db() -> Iterator[Session]:
     """1 request = 1 transaction: commit เมื่อสำเร็จ, rollback ทั้งหมดเมื่อ error (รวม audit log)."""
     db = SessionLocal()

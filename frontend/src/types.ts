@@ -62,3 +62,74 @@ export interface ProjectDetail {
   row_version: number;
   steps: ProjectStepSummary[];
 }
+
+export type MethodCode = "E_MARKET" | "E_BIDDING" | "SELECTION" | "SPECIFIC";
+
+export interface Justification {
+  id: number;
+  clause_ref: string;
+  description_th: string;
+  max_budget_inclusive: string | null;
+}
+
+export interface MethodInfo {
+  code: MethodCode;
+  category: "GENERAL_INVITATION" | "SELECTION" | "SPECIFIC";
+  name_th: string;
+  legal_basis: string;
+  min_budget_exclusive: string | null;
+  max_budget_inclusive: string | null;
+  justifications: Justification[];
+}
+
+export interface Department {
+  department_id: number;
+  code: string;
+  name_th: string;
+}
+
+export interface WorkflowPreviewStep {
+  order: number;
+  code: string;
+  name_th: string;
+  legal_ref: string | null;
+  document: string | null;
+  min_announce_working_days?: number;
+}
+
+export interface ProjectListItem {
+  project_id: number;
+  project_code: string;
+  title_th: string;
+  fiscal_year_be: number;
+  department_name_th: string;
+  method: { code: MethodCode; name_th: string };
+  budget_amount: string;
+  status: string;
+  progress: { done: number; total: number };
+  current_step: { code: string; name_th: string; status: string } | null;
+}
+
+/** ค่าที่ผู้ใช้กรอกในฟอร์มสร้างโครงการ — เก็บเป็น string ตามที่พิมพ์ แปลงชนิดตอนส่ง */
+export interface ItemDraft {
+  description: string;
+  quantity: string;
+  unit_th: string;
+  unit_price: string;
+}
+
+export interface ProjectDraft {
+  project_code: string;
+  egp_project_no: string;
+  fiscal_year_be: string;
+  title_th: string;
+  reason_th: string;
+  department_id: string;
+  method_code: MethodCode | "";
+  justification_id: string;
+  procurement_type: string;
+  budget_amount: string;
+  reference_price: string;
+  delivery_days: string;
+  items: ItemDraft[];
+}

@@ -113,6 +113,16 @@ def test_full_specific_method_flow(client, monkeypatch):
     assert r.status_code == 201, r.text
     pid = r.json()["project_id"]
 
+    # --- รายการโครงการ / หน่วยงาน ---------------------------------------------
+    rows = client.get("/api/projects", params={"q": "วัสดุคอมพิวเตอร์", "fiscal_year": 2570}, headers=officer).json()
+    assert [p["project_id"] for p in rows] == [pid]
+    assert rows[0]["progress"] == {"done": 1, "total": 5}
+    assert rows[0]["current_step"]["code"] == "PURCHASE_REQUEST_REPORT"
+    assert client.get("/api/projects", params={"q": "%"}, headers=officer).json() == []      # wildcard ถูก escape
+    assert client.get("/api/projects", params={"method": "E_BIDDING"}, headers=officer).json() == []
+    assert client.get("/api/projects", params={"status": "HACKED"}, headers=officer).status_code == 422
+    assert client.get("/api/departments", headers=officer).json()[0]["code"] == "PSD"
+
     def submit(step: str, data: dict, who=officer):
         version = client.get(f"/api/projects/{pid}", headers=who).json()["row_version"]
         return client.post(f"/api/projects/{pid}/steps/{step}/submit", json={"data": data, "row_version": version},
