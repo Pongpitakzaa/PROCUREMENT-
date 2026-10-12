@@ -7,3 +7,7 @@ backend/storage/
 node_modules/
 frontend/dist/
 frontend/dist-demo/
+deploy/.env
+deploy/data/
+deploy/certs/*.pem
+deploy/certs/*.key

@@ -1,0 +1,90 @@
+# ระบบจัดซื้อจัดจ้างภาครัฐ — ติดตั้งบนเซิร์ฟเวอร์จริง (ดูขั้นตอนใน deploy/README.md)
+#   db   PostgreSQL 16 (อยู่ในเครือข่ายภายในเท่านั้น ไม่เปิดพอร์ตออกนอกเครื่อง)
+#   api  FastAPI + LibreOffice + pg_dump (ไม่เปิดพอร์ตออกนอก — เข้าได้ผ่าน web เท่านั้น)
+#   web  Caddy: HTTPS (พอร์ต 80/443) + หน้าเว็บ + reverse proxy /api
+name: procurement
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "10" }
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_SUPERUSER_PASSWORD:?ตั้งค่าใน .env}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?ตั้งค่าใน .env}
+      TZ: Asia/Bangkok
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro       # รันครั้งแรกครั้งเดียว (ฐานข้อมูลว่าง)
+      - ../database:/schema:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d procurement"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 256mb
+    logging: *logging
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+      args:
+        UBUNTU_MIRROR: ${UBUNTU_MIRROR:-}
+    image: procurement-api:latest
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PROC_DATABASE_URL: postgresql+psycopg://proc_app:${DB_APP_PASSWORD}@db:5432/procurement
+      PROC_ALLOWED_ORIGINS: '["https://${DOMAIN}"]'
+      PROC_PUBLIC_BASE_URL: https://${DOMAIN}
+      PROC_JWT_SECRET: ${PROC_JWT_SECRET:?ตั้งค่าใน .env}
+      PROC_BLIND_INDEX_KEY: ${PROC_BLIND_INDEX_KEY:?ตั้งค่าใน .env}
+      PROC_DATA_KEYS: ${PROC_DATA_KEYS:?ตั้งค่าใน .env}
+      PROC_ACTIVE_DATA_KEY_ID: ${PROC_ACTIVE_DATA_KEY_ID:-k1}
+      PROC_BACKUP_KEY: ${PROC_BACKUP_KEY:?ตั้งค่าใน .env}
+      PROC_LINE_CHANNEL_ACCESS_TOKEN: ${PROC_LINE_CHANNEL_ACCESS_TOKEN:-}
+    volumes:
+      - ./data/storage/templates:/app/storage/templates
+      - ./data/storage/outputs:/app/storage/outputs
+      - ./data/storage/backups:/app/storage/backups
+      - ./fonts:/usr/local/share/fonts/agency:ro
+    networks: [internal, edge]          # edge: ออกอินเทอร์เน็ตเพื่อส่ง LINE
+    read_only: true
+    tmpfs: ["/tmp:size=512m", "/home/app:size=128m,uid=10001,gid=10001,mode=0700"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: *logging
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    image: procurement-web:latest
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      DOMAIN: ${DOMAIN:?ตั้งค่าใน .env}
+      CADDY_TLS: ${CADDY_TLS:?ตั้งค่าใน .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./data/caddy:/data                 # ใบรับรอง Let's Encrypt
+      - ./certs:/certs:ro                  # ใบรับรองของหน่วยงาน (ถ้ามี)
+    networks: [edge]
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+networks:
+  internal:
+    internal: true      # db ออกอินเทอร์เน็ตไม่ได้ และไม่มีใครจากภายนอกเข้าถึงได้
+  edge: {}

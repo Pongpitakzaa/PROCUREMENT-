@@ -34,7 +34,7 @@ from app.core.config import get_settings
 
 MAGIC = b"PROCBK1\n"
 CHUNK = 4 * 1024 * 1024
-BACKUP_NAME = re.compile(r"^procurement-\d{8}T\d{6}(-pre-restore)?\.dump\.enc$")   # whitelist ชื่อไฟล์
+BACKUP_NAME = re.compile(r"^procurement-\d{8}T\d{6}(-pre-restore|-auto)?\.dump\.enc$")   # whitelist ชื่อไฟล์
 
 
 class BackupError(Exception):

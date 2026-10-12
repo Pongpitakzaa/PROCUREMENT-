@@ -112,3 +112,14 @@ def test_render_docx_escapes_and_requires_all_variables(tmp_path):
     assert "แปดหมื่นบาทถ้วน" in text
     with pytest.raises(ExportError, match="budget_text"):
         render_docx(tpl, {"project_title": "x", "budget_amount": "1"})
+
+
+def test_backup_name_whitelist():
+    """ไฟล์ที่กู้คืนได้: สำรองเอง, สำรองอัตโนมัติ (cron), สำรองก่อนกู้คืน — ชื่ออื่นถูกปฏิเสธ (กัน path traversal)."""
+    from app.services.backup_service import BACKUP_NAME
+    for ok in ("procurement-20261013T042151.dump.enc", "procurement-20261013T042536-auto.dump.enc",
+               "procurement-20261013T042152-pre-restore.dump.enc"):
+        assert BACKUP_NAME.fullmatch(ok)
+    for bad in ("../procurement-20261013T042151.dump.enc", "procurement-20261013T042151-x.dump.enc",
+                "procurement-20261013T042151.dump.enc.json", "/etc/passwd"):
+        assert not BACKUP_NAME.fullmatch(bad)

@@ -20,6 +20,7 @@
 | 3 | Security & Validation Logic | [docs/03-security-validation.md](docs/03-security-validation.md) |
 | 4 | การนำแบบฟอร์มกรมบัญชีกลางเข้าระบบ | [docs/04-cgd-templates.md](docs/04-cgd-templates.md) |
 | 5 | ใช้งานบน iOS / Android (ติดตั้งเป็นแอป) | [docs/05-mobile-ios-android.md](docs/05-mobile-ios-android.md) |
+| 6 | **ติดตั้งบนเซิร์ฟเวอร์จริง (Docker)** | [deploy/README.md](deploy/README.md) |
 
 ## โค้ดหลักที่ควรอ่าน
 

@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+frontend/dist
+frontend/dist-demo
+tools
+docs
+deploy/data
+deploy/.env
+deploy/certs/*.pem
+deploy/certs/*.key
