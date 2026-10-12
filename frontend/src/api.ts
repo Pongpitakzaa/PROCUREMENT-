@@ -41,13 +41,24 @@ export function logout(): void {
   accessToken = null;
 }
 
+/** บันทึก Blob เป็นไฟล์ในเครื่องผู้ใช้ */
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** ดาวน์โหลดเอกสาร (DOCX/PDF/XLSX) โดยไม่เปิดหน้าใหม่ */
 export async function exportDocument(projectId: number, stepCode: string, format: "docx" | "pdf" | "xlsx") {
   const blob = await api<Blob>(`/api/projects/${projectId}/steps/${stepCode}/export?format=${format}`, {
     method: "POST",
   });
-  const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement("a"), { href: url, download: `${stepCode}.${format}` });
-  a.click();
-  URL.revokeObjectURL(url);
+  saveBlob(blob, `${stepCode}.${format}`);
+}
+
+/** ดาวน์โหลดรายงานสรุป Excel ของ Dashboard */
+export async function downloadDashboardReport(fiscalYear: number) {
+  const blob = await api<Blob>(`/api/dashboard/report.xlsx?fiscal_year=${fiscalYear}`);
+  saveBlob(blob, `procurement-${fiscalYear}.xlsx`);
 }

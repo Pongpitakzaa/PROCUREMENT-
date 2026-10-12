@@ -133,3 +133,27 @@ export interface ProjectDraft {
   delivery_days: string;
   items: ItemDraft[];
 }
+
+/** ค่าเงินจาก API มาเป็น string (Decimal) หรือ 0 เมื่อไม่มีข้อมูล */
+export type ApiMoney = string | number;
+
+export interface DashboardSummary {
+  fiscal_year: number;
+  kpi: { project_count: number; budget_total: ApiMoney; award_total: ApiMoney; savings_total: ApiMoney };
+  monthly_by_method: {
+    month: string;            // YYYY-MM (ค.ศ.)
+    method_code: MethodCode;
+    method_name_th: string;
+    project_count: number;
+    budget_total: ApiMoney;
+    award_total: ApiMoney;
+    savings_total: ApiMoney;
+  }[];
+  by_method_status: {
+    method_code: MethodCode;
+    method_name_th: string;
+    status: string;
+    project_count: number;
+    budget_total: ApiMoney;
+  }[];
+}

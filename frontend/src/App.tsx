@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
+import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
@@ -7,7 +8,7 @@ import type { MethodInfo } from "./types";
 
 interface Me { full_name_th: string; roles: string[]; permissions: string[] }
 
-type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number };
+type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" };
 
 const ROLE_TH: Record<string, string> = {
   ADMIN: "ผู้ดูแลระบบ", PROCUREMENT_OFFICER: "เจ้าหน้าที่พัสดุ", HEAD_OF_PROCUREMENT: "หัวหน้าเจ้าหน้าที่",
@@ -59,6 +60,7 @@ export function App() {
   }
 
   const canCreate = me?.permissions.includes("project:write") ?? false;
+  const canViewDashboard = me?.permissions.includes("dashboard:view") ?? false;
   const toList = () => setView({ name: "list" });
 
   return (
@@ -66,10 +68,17 @@ export function App() {
       <header className="app-header">
         <div className="brand">◆ e-Procurement <span>· ระบบจัดซื้อจัดจ้าง</span></div>
         <nav className="nav">
-          <button type="button" className={view.name !== "create" ? "on" : ""} onClick={toList}>โครงการ</button>
+          <button type="button" className={view.name === "list" || view.name === "detail" ? "on" : ""} onClick={toList}>
+            โครงการ
+          </button>
           {canCreate && (
             <button type="button" className={view.name === "create" ? "on" : ""} onClick={() => setView({ name: "create" })}>
               สร้างโครงการ
+            </button>
+          )}
+          {canViewDashboard && (
+            <button type="button" className={view.name === "dashboard" ? "on" : ""} onClick={() => setView({ name: "dashboard" })}>
+              Dashboard
             </button>
           )}
         </nav>
@@ -95,6 +104,7 @@ export function App() {
                              onCreated={(projectId) => setView({ name: "detail", projectId })} />
         )}
         {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} onBack={toList} />}
+        {view.name === "dashboard" && <DashboardPage />}
       </main>
     </>
   );
