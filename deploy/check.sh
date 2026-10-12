@@ -3,7 +3,7 @@
 #   ./check.sh            ตรวจผ่านโดเมนจริง
 #   ./check.sh --local    ตรวจที่เครื่องนี้ (ก่อนตั้ง DNS / ใบรับรอง internal)
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 DOMAIN="$(grep '^DOMAIN=' .env | cut -d= -f2)"
 CURL=(curl -sS --max-time 15)
 [[ "${1:-}" == "--local" ]] && CURL+=(--noproxy '*' --resolve "$DOMAIN:443:127.0.0.1" --resolve "$DOMAIN:80:127.0.0.1" -k)
@@ -14,6 +14,7 @@ bad() { printf '  ✘ %s\n' "$1"; fails=$((fails + 1)); }
 t() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
 echo "== เว็บ ($BASE)"
+# shellcheck disable=SC2034  # ใช้ในเงื่อนไขของ t() ผ่าน eval
 headers="$("${CURL[@]}" -D - -o /dev/null "$BASE/")"
 t "หน้าเว็บตอบ 200"                   '[[ "$headers" == *" 200"* ]]'
 t "HSTS"                               '[[ "${headers,,}" == *"strict-transport-security"* ]]'

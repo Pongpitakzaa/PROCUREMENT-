@@ -17,7 +17,9 @@ docker compose version >/dev/null 2>&1 || { echo "ต้องมี Docker Comp
 rand_url() { openssl rand -base64 48 | tr -d '\n=+/' | cut -c1-"$1"; }   # ใช้ใน URL ได้ (ไม่มีอักขระพิเศษ)
 key32() { openssl rand -base64 32 | tr -d '\n'; }
 
+FIRST_INSTALL=0
 if [[ ! -f .env ]]; then
+  FIRST_INSTALL=1
   echo "== สร้างไฟล์ตั้งค่า .env (ค่าลับสุ่มใหม่)"
   DOMAIN="${DOMAIN:-}"; CADDY_TLS="${CADDY_TLS:-}"
   [[ -n "$DOMAIN" ]] || read -rp "ชื่อโดเมนของระบบ (เช่น procurement.agency.go.th): " DOMAIN
@@ -48,6 +50,8 @@ fi
 
 # Docker Compose ให้ตัวแปรใน shell "ทับ" ค่าใน .env — ถ้าเผลอ export PROC_* ไว้ (เช่นจากการทดสอบ)
 # API จะเปิดด้วยกุญแจคนละชุดและถอดรหัสข้อมูล/ไฟล์สำรองเดิมไม่ได้ จึงล้างทิ้งก่อนเสมอ
+# (ติดตั้งครั้งแรก: DOMAIN/CADDY_TLS ที่ส่งมาถูกเขียนลง .env แล้ว จึงล้างเงียบ ๆ)
+(( FIRST_INSTALL )) && unset DOMAIN CADDY_TLS UBUNTU_MIRROR
 leaked=$(compgen -e | grep -E '^(PROC_|DB_SUPERUSER_PASSWORD$|DB_APP_PASSWORD$|DOMAIN$|CADDY_TLS$|UBUNTU_MIRROR$)' || true)
 if [[ -n "$leaked" ]]; then
   echo "   คำเตือน: ล้างตัวแปรใน shell ที่จะทับค่าใน .env: $(echo $leaked)"

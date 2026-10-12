@@ -195,12 +195,25 @@ sudo ./install.sh --no-build
 - [ ] อัปเดต OS (`unattended-upgrades`) และอัปเดต image ตามรอบ (`./install.sh` ดึง base image ล่าสุดทุกครั้ง)
 - [ ] แจ้งเจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล (DPO) ถึงที่ตั้งเซิร์ฟเวอร์และระยะเวลาเก็บไฟล์สำรอง
 
+## CI: ตรวจชุดติดตั้งทุก Pull Request
+
+`.github/workflows/docker-build.yml` build image ทั้งสอง (มี layer cache) แล้วรัน `ci-smoke.sh` บน runner:
+`install.sh` (ใบรับรองชั่วคราว) → `check.sh` 14 ข้อ → สร้างผู้ดูแลด้วย CLI → เข้าสู่ระบบผ่าน HTTPS → สำรองข้อมูลด้วย CLI
+ถ้าไม่ผ่าน job จะแสดง log ของคอนเทนเนอร์ให้ดูต่อท้าย
+
+รันเองบนเครื่องทดสอบ (ห้ามรันบนเซิร์ฟเวอร์จริง — สคริปต์จะหยุดถ้าพบ `.env` หรือฐานข้อมูลเดิม):
+
+```bash
+cd deploy && docker compose build && sudo ./ci-smoke.sh
+```
+
 ## ไฟล์ในโฟลเดอร์นี้
 
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `install.sh` | ติดตั้ง/อัปเดต (สร้าง `.env`, โฟลเดอร์ข้อมูล, build, เปิดระบบ) |
 | `check.sh` | ตรวจระบบหลังติดตั้ง |
+| `ci-smoke.sh` | ทดสอบชุดติดตั้งครบวงจร (ใช้ใน GitHub Actions) |
 | `docker-compose.yml` | นิยามบริการ เครือข่าย และสิทธิ์ของคอนเทนเนอร์ |
 | `api.Dockerfile` / `web.Dockerfile` | image ของ API และหน้าเว็บ |
 | `Caddyfile` | HTTPS, reverse proxy, security headers, cache |
