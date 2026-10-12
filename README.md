@@ -11,6 +11,14 @@
 - **Backup / Restore** จากหน้าเว็บ (เข้ารหัส AES-256-GCM, ตรวจ checksum, สำรองก่อนกู้อัตโนมัติ)
 - **Security** Argon2id, JWT, RBAC + Segregation of Duties, เข้ารหัสข้อมูลส่วนบุคคล, audit log แบบ hash chain
 
+## ภาพหน้าจอ
+
+| คอมพิวเตอร์ | มือถือ (iPhone) |
+|---|---|
+| ![หน้าหลัก: รายการโครงการ](docs/screenshots/desktop-2-main.png) | ![หน้าหลักบนมือถือ](docs/screenshots/mobile-2-main.png) |
+
+ภาพจากระบบจริง (API + PostgreSQL) ด้วยข้อมูลตัวอย่าง · หน้าเข้าสู่ระบบ: [คอมพิวเตอร์](docs/screenshots/desktop-1-login.png) · [มือถือ](docs/screenshots/mobile-1-login.png)
+
 ## เอกสารออกแบบ
 
 | # | หัวข้อ | ไฟล์ |
