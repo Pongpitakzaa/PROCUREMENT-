@@ -261,3 +261,26 @@ export interface LineChannel {
   is_active: boolean;
   last_sent_at: string | null;
 }
+
+export type RoleCode = "ADMIN" | "PROCUREMENT_OFFICER" | "HEAD_OF_PROCUREMENT" | "EXECUTIVE" | "AUDITOR";
+
+export interface ManagedUser {
+  user_id: number;
+  username: string;
+  full_name_th: string;
+  position_th: string;
+  personnel_id: number;
+  roles: RoleCode[];
+  is_active: boolean;
+  is_locked: boolean;
+  locked_until: string | null;
+  failed_login_count: number;
+  last_login_at: string | null;
+  password_changed_at: string;
+}
+
+export interface RoleInfo {
+  code: RoleCode;
+  description_th: string;
+  permissions: string[];
+}

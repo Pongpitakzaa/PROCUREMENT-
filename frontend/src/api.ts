@@ -37,6 +37,11 @@ export async function login(username: string, password: string): Promise<void> {
 
 export const isLoggedIn = () => accessToken !== null;
 
+/** ใช้หลังเปลี่ยนรหัสผ่าน: token เดิมถูกยกเลิกโดยเซิร์ฟเวอร์ จึงต้องแทนด้วย token ใหม่ */
+export function setAccessToken(token: string): void {
+  accessToken = token;
+}
+
 export function logout(): void {
   accessToken = null;
 }

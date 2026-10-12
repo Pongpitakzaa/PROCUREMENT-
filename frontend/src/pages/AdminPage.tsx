@@ -4,17 +4,19 @@
  * - แบบฟอร์มกรมบัญชีกลาง (template:manage = อัปโหลด, template:verify = ตรวจรับรอง; ต้องคนละคน)
  * - Audit Log + ตรวจ hash chain (audit:read)
  * - กลุ่ม LINE สำหรับแจ้งเตือน (user:manage)
+ * - ผู้ใช้งาน (user:manage) — pages/admin/UsersTab.tsx
  */
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api";
 import type { AuditRow, BackupManifest, LineChannel, TemplateRow } from "../types";
+import { UsersTab } from "./admin/UsersTab";
 
 interface Props {
   permissions: string[];
   userId: number;
 }
 
-type TabKey = "backup" | "templates" | "audit" | "line";
+type TabKey = "users" | "backup" | "templates" | "audit" | "line";
 
 const thDateTime = (iso: string) =>
   new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -26,6 +28,7 @@ const errText = (e: unknown) =>
 export function AdminPage({ permissions, userId }: Props) {
   const can = (p: string) => permissions.includes(p);
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
+    { key: "users", label: "ผู้ใช้งาน", show: can("user:manage") },
     { key: "backup", label: "สำรอง/กู้คืนข้อมูล", show: can("backup:run") },
     { key: "templates", label: "แบบฟอร์มกรมบัญชีกลาง", show: can("template:manage") || can("template:verify") },
     { key: "audit", label: "Audit Log", show: can("audit:read") },
@@ -50,6 +53,7 @@ export function AdminPage({ permissions, userId }: Props) {
                   className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>{t.label}</button>
         ))}
       </div>
+      {tab === "users" && <UsersTab meId={userId} />}
       {tab === "backup" && <BackupTab canRestore={can("restore:run")} />}
       {tab === "templates" && <TemplatesTab canManage={can("template:manage")} canVerify={can("template:verify")} userId={userId} />}
       {tab === "audit" && <AuditTab />}

@@ -130,6 +130,50 @@ class SanctionCreate(StrictModel):
         return self
 
 
+Username = Annotated[str, StringConstraints(min_length=3, max_length=60, pattern=r"^[a-z0-9_.-]+$")]
+RoleCode = Literal["ADMIN", "PROCUREMENT_OFFICER", "HEAD_OF_PROCUREMENT", "EXECUTIVE", "AUDITOR"]
+
+
+class PersonnelCreate(StrictModel):
+    department_id: Annotated[int, Field(gt=0)]
+    title_th: Annotated[str, StringConstraints(min_length=1, max_length=50)]
+    first_name_th: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    last_name_th: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    position_th: Annotated[str, StringConstraints(min_length=1, max_length=150)]
+    employment_type: Literal["CIVIL_SERVANT", "GOV_EMPLOYEE", "PERMANENT_EMPLOYEE", "STATE_OFFICIAL", "OTHER"]
+    citizen_id: TaxId   # เลขประจำตัวประชาชนใช้ checksum เดียวกับเลขผู้เสียภาษี
+
+    @model_validator(mode="after")
+    def _not_juristic(self) -> "PersonnelCreate":
+        if self.citizen_id.startswith("0"):
+            raise ValueError("เลขประจำตัวประชาชนไม่ขึ้นต้นด้วย 0 (เลขที่ขึ้นต้นด้วย 0 เป็นเลขนิติบุคคล)")
+        return self
+
+
+class UserCreate(StrictModel):
+    """สร้างบัญชี: ผูกกับบุคลากรเดิม (personnel_id) หรือเพิ่มบุคลากรใหม่ (personnel) อย่างใดอย่างหนึ่ง."""
+    username: Username
+    roles: Annotated[list[RoleCode], Field(min_length=1, max_length=5)]
+    personnel_id: Annotated[int, Field(gt=0)] | None = None
+    personnel: PersonnelCreate | None = None
+
+    @model_validator(mode="after")
+    def _one_personnel_source(self) -> "UserCreate":
+        if (self.personnel_id is None) == (self.personnel is None):
+            raise ValueError("ระบุบุคลากรเดิม หรือ ข้อมูลบุคลากรใหม่ อย่างใดอย่างหนึ่ง")
+        return self
+
+
+class UserUpdate(StrictModel):
+    roles: Annotated[list[RoleCode], Field(min_length=1, max_length=5)] | None = None
+    is_active: bool | None = None
+
+
+class ChangePasswordIn(StrictModel):
+    current_password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+    new_password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+
+
 class StepSubmitIn(StrictModel):
     # ค่าในฟอร์มตรวจด้วย FieldSpec ของขั้นตอน (app/rules/step_forms.py)
     data: dict[str, object]

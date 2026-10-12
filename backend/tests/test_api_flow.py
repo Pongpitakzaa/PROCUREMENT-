@@ -298,3 +298,58 @@ def test_full_specific_method_flow(client, monkeypatch):
     assert any(a["entity_table"] == "projects" and a["entity_id"] == str(pid + 1) for a in created)
     manifests = client.get("/api/admin/backups", headers=admin).json()
     assert len(manifests) == 2 and json.dumps(manifests)
+
+
+def test_user_management(client):
+    admin = login(client, "admin")
+    officer = login(client, "officer")
+    assert client.get("/api/admin/users", headers=officer).status_code == 403
+
+    # สร้างบุคลากรใหม่ + บัญชี: ได้รหัสผ่านชั่วคราวครั้งเดียว · เลขบัตรไม่ออกมาใน response
+    person = {"department_id": 1, "title_th": "นาย", "first_name_th": "ทดสอบ", "last_name_th": "ผู้ใช้ใหม่",
+              "position_th": "เจ้าพนักงานพัสดุ", "employment_type": "GOV_EMPLOYEE", "citizen_id": "1234567890121"}
+    bad = client.post("/api/admin/users", headers=admin, json={
+        "username": "newbie", "roles": ["ADMIN", "PROCUREMENT_OFFICER"], "personnel": person})
+    assert bad.status_code == 422 and "ผู้ดูแลระบบห้ามมีบทบาทในงานพัสดุ" in bad.json()["message"]
+    r = client.post("/api/admin/users", headers=admin, json={
+        "username": "newbie", "roles": ["PROCUREMENT_OFFICER"], "personnel": person})
+    assert r.status_code == 201, r.text
+    temp, uid = r.json()["temporary_password"], r.json()["user"]["user_id"]
+    assert "1234567890121" not in r.text
+    dup = client.post("/api/admin/users", headers=admin, json={
+        "username": "newbie2", "roles": ["AUDITOR"], "personnel": person})
+    assert dup.status_code == 409                                    # เลขบัตรซ้ำ (blind index)
+
+    # ผู้ใช้ใหม่เข้าสู่ระบบด้วยรหัสชั่วคราว แล้วเปลี่ยนรหัสผ่านตามนโยบาย
+    tok = client.post("/api/auth/login", json={"username": "newbie", "password": temp}).json()["access_token"]
+    me = {"Authorization": f"Bearer {tok}"}
+    weak = client.post("/api/auth/change-password", headers=me, json={"current_password": temp, "new_password": "newbie12345678"})
+    assert weak.status_code == 422
+    r = client.post("/api/auth/change-password", headers=me, json={"current_password": temp, "new_password": "Pr0curement-Strong"})
+    assert r.status_code == 200
+    me_new = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert client.get("/api/auth/me", headers=me_new).status_code == 200
+
+    # ระงับบัญชี → token ใช้ไม่ได้ทันที · เปิดใหม่ + รีเซ็ตรหัสผ่าน → รหัสเดิมใช้ไม่ได้
+    assert client.patch(f"/api/admin/users/{uid}", headers=admin, json={"is_active": False}).json()["is_active"] is False
+    assert client.get("/api/auth/me", headers=me_new).status_code == 401
+    client.patch(f"/api/admin/users/{uid}", headers=admin, json={"is_active": True})
+    temp2 = client.post(f"/api/admin/users/{uid}/reset-password", headers=admin).json()["temporary_password"]
+    assert client.post("/api/auth/login", json={"username": "newbie", "password": "Pr0curement-Strong"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "newbie", "password": temp2}).status_code == 200
+
+    # ล็อกจากรหัสผิด 5 ครั้ง → ปลดล็อก
+    for _ in range(5):
+        client.post("/api/auth/login", json={"username": "newbie", "password": "wrong-password"})
+    assert client.post("/api/auth/login", json={"username": "newbie", "password": temp2}).status_code == 423
+    assert client.post(f"/api/admin/users/{uid}/unlock", headers=admin).json()["is_locked"] is False
+    assert client.post("/api/auth/login", json={"username": "newbie", "password": temp2}).status_code == 200
+
+    # กันระบบไม่มีผู้ดูแล: ถอด/ระงับตนเองไม่ได้
+    admin_id = next(u["user_id"] for u in client.get("/api/admin/users", headers=admin).json() if u["username"] == "admin")
+    r = client.patch(f"/api/admin/users/{admin_id}", headers=admin, json={"roles": ["AUDITOR"]})
+    assert r.status_code == 422 and "ของตนเอง" in r.json()["message"]
+    assert client.patch(f"/api/admin/users/{admin_id}", headers=admin, json={"is_active": False}).status_code == 422
+    assert client.post(f"/api/admin/users/{admin_id}/reset-password", headers=admin).status_code == 422
+    actions = {a["action"] for a in client.get("/api/admin/audit", params={"limit": 50}, headers=admin).json()["items"]}
+    assert {"PASSWORD_RESET", "PASSWORD_CHANGE", "UNLOCK"} <= actions

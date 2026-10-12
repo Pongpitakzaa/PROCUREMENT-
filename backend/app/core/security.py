@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
@@ -60,6 +61,49 @@ ROLE_PERMISSIONS: dict[str, frozenset[Perm]] = {
 
 def permissions_of(role_codes: set[str]) -> frozenset[Perm]:
     return frozenset().union(*(ROLE_PERMISSIONS.get(r, frozenset()) for r in role_codes))
+
+
+# ---------------------------------------------------------------------------
+# นโยบายรหัสผ่าน / บทบาท (pure functions — ใช้ทั้ง API และ test)
+# ---------------------------------------------------------------------------
+PASSWORD_MIN_LENGTH = 12
+ROLE_CODES = ("ADMIN", "PROCUREMENT_OFFICER", "HEAD_OF_PROCUREMENT", "EXECUTIVE", "AUDITOR")
+_PROCUREMENT_ROLES = {"PROCUREMENT_OFFICER", "HEAD_OF_PROCUREMENT", "EXECUTIVE"}
+
+
+def password_problems(password: str, username: str = "") -> list[str]:
+    """นโยบายรหัสผ่าน: ยาว ≥ 12 · มีตัวอักษรและตัวเลข · ไม่มีชื่อผู้ใช้อยู่ในรหัสผ่าน."""
+    problems = []
+    if len(password) < PASSWORD_MIN_LENGTH:
+        problems.append(f"ต้องยาวอย่างน้อย {PASSWORD_MIN_LENGTH} ตัวอักษร")
+    if not any(c.isalpha() for c in password) or not any(c.isdigit() for c in password):
+        problems.append("ต้องมีทั้งตัวอักษรและตัวเลข")
+    if username and username.lower() in password.lower():
+        problems.append("ห้ามมีชื่อผู้ใช้อยู่ในรหัสผ่าน")
+    return problems
+
+
+def generate_temp_password() -> str:
+    """รหัสผ่านชั่วคราว 16 ตัว (สุ่มด้วย secrets) — ผู้ดูแลไม่ต้องตั้งเอง/ไม่รู้ล่วงหน้า."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"   # ตัดตัวที่สับสนง่าย (0/O, 1/l/I)
+    while True:
+        pw = "".join(secrets.choice(alphabet) for _ in range(16))
+        if not password_problems(pw):
+            return pw
+
+
+def role_combination_problems(roles: set[str]) -> list[str]:
+    """แบ่งแยกหน้าที่ (Segregation of Duties) ระดับบทบาท."""
+    problems = []
+    if not roles:
+        problems.append("ต้องมีอย่างน้อย 1 บทบาท")
+    if unknown := roles - set(ROLE_CODES):
+        problems.append(f"บทบาทไม่ถูกต้อง: {sorted(unknown)}")
+    if "ADMIN" in roles and roles & _PROCUREMENT_ROLES:
+        problems.append("ผู้ดูแลระบบห้ามมีบทบาทในงานพัสดุ (ผู้ดูแลข้อมูลต้องไม่ใช่ผู้ทำ/อนุมัติรายการ)")
+    if "AUDITOR" in roles and len(roles) > 1:
+        problems.append("ผู้ตรวจสอบภายในต้องมีบทบาทเดียว (ความเป็นอิสระของผู้ตรวจสอบ)")
+    return problems
 
 
 def hash_password(password: str) -> str:

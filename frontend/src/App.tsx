@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
+import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
@@ -8,7 +9,7 @@ import { ProjectListPage } from "./pages/ProjectListPage";
 import { VendorsPage } from "./pages/VendorsPage";
 import type { MethodInfo } from "./types";
 
-interface Me { user_id: number; full_name_th: string; roles: string[]; permissions: string[] }
+interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[] }
 
 type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" } | { name: "admin" };
 
@@ -23,6 +24,21 @@ export function App() {
   const [methods, setMethods] = useState<MethodInfo[]>([]);
   const [view, setView] = useState<View>({ name: "list" });
   const [error, setError] = useState<string | null>(null);
+  const [changingPw, setChangingPw] = useState(false);
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const closeMenu = () => menuRef.current?.removeAttribute("open");
+
+  // ปิดเมนูผู้ใช้เมื่อคลิกนอกเมนู หรือกด Esc
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeMenu();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeMenu();
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("click", onClick); document.removeEventListener("keydown", onKey); };
+  }, []);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authed) return;
@@ -95,17 +111,30 @@ export function App() {
           )}
         </nav>
         {me && (
-          <div className="user">
-            <span>{me.full_name_th}</span>
-            <small>{me.roles.map((r) => ROLE_TH[r] ?? r).join(", ")}</small>
-            <button type="button" className="ghost" onClick={() => { logout(); setAuthed(false); setMe(null); }}>
-              ออกจากระบบ
-            </button>
-          </div>
+          <details className="user user-menu" ref={menuRef}>
+            <summary>
+              <span className="avatar" aria-hidden>{me.full_name_th.replace(/^(นาย|นางสาว|นาง)/, "").trim().charAt(0)}</span>
+              <span className="who"><span>{me.full_name_th}</span><small>{me.roles.map((r) => ROLE_TH[r] ?? r).join(", ")}</small></span>
+            </summary>
+            <div className="menu card" role="menu">
+              <div className="menu-head muted small">{me.username}</div>
+              <button type="button" role="menuitem" onClick={() => { closeMenu(); setChangingPw(true); }}>เปลี่ยนรหัสผ่าน</button>
+              <button type="button" role="menuitem" onClick={() => { closeMenu(); logout(); setAuthed(false); setMe(null); }}>
+                ออกจากระบบ
+              </button>
+            </div>
+          </details>
         )}
       </header>
 
+      {changingPw && me && (
+        <ChangePasswordDialog username={me.username} onClose={(changed) => {
+          setChangingPw(false);
+          if (changed) setNotice("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+        }} />
+      )}
       <main className="app">
+        {notice && <p role="status" className="banner-ok" onClick={() => setNotice(null)}>{notice}</p>}
         {view.name === "list" && (
           <ProjectListPage methods={methods} canCreate={canCreate}
                            onOpen={(projectId) => setView({ name: "detail", projectId })}
