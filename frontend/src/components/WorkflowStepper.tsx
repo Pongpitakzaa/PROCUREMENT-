@@ -14,9 +14,10 @@ interface Props {
   project: ProjectDetail;
   activeStep: string | null;
   onSelect: (code: string) => void;
+  onError: (message: string) => void;
 }
 
-export function WorkflowStepper({ project, activeStep, onSelect }: Props) {
+export function WorkflowStepper({ project, activeStep, onSelect, onError }: Props) {
   const firstOpen = project.steps.findIndex((s) => !["APPROVED", "SKIPPED"].includes(s.status));
   return (
     <ol className="stepper">
@@ -32,7 +33,8 @@ export function WorkflowStepper({ project, activeStep, onSelect }: Props) {
             {canExport && (
               <span className="exports">
                 {(["docx", "pdf"] as const).map((f) => (
-                  <button key={f} type="button" onClick={() => exportDocument(project.project_id, s.code, f)}>
+                  <button key={f} type="button" onClick={() => exportDocument(project.project_id, s.code, f)
+                    .catch((e: Error) => onError(`สร้างเอกสารไม่สำเร็จ: ${e.message}`))}>
                     {f.toUpperCase()}
                   </button>
                 ))}

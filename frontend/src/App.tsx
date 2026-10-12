@@ -11,6 +11,7 @@ export function App() {
   const [activeStep, setActiveStep] = useState<string | null>(null);
 
   const loadProject = useCallback(async (id: number) => {
+    setError(null);
     setProject(await api<ProjectDetail>(`/api/projects/${id}`));
   }, []);
 
@@ -23,6 +24,7 @@ export function App() {
           const f = new FormData(e.currentTarget);
           try {
             await login(String(f.get("username")), String(f.get("password")));
+            setError(null);
             setAuthed(true);
           } catch (err) {
             setError(err instanceof ApiError ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
@@ -56,10 +58,11 @@ export function App() {
         <section className="project">
           <h2>{project.project_code} — {project.title_th}</h2>
           <p>{project.method.name_th} · วงเงิน {Number(project.budget_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })} บาท</p>
-          <WorkflowStepper project={project} activeStep={activeStep} onSelect={setActiveStep} />
+          <WorkflowStepper project={project} activeStep={activeStep} onSelect={setActiveStep} onError={setError} />
           {activeStep && (
             <DynamicStepForm
-              key={activeStep}
+              // row_version เปลี่ยนหลังบันทึก → remount เพื่อโหลดสถานะใหม่ (ฟอร์มถูกล็อก)
+              key={`${activeStep}-${project.row_version}`}
               projectId={project.project_id}
               stepCode={activeStep}
               onSubmitted={() => loadProject(project.project_id)}
