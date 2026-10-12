@@ -514,6 +514,56 @@ button.danger-solid:hover:not(:disabled) { background: #b91c1c; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .vendor-form h3 { margin: 0 0 14px; font-size: 18px; }
 
+
+/* ---------- ผู้ดูแลระบบ ---------- */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs button {
+  background: none; color: var(--muted); border-radius: 0; padding: 10px 14px; white-space: nowrap;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button:hover:not(:disabled) { background: none; color: var(--ink); }
+.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+.admin-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.panel-lg { padding: 20px 22px; min-width: 0; }
+.panel-lg h3 { margin: 0 0 2px; font-size: 16px; }
+.panel-lg > p.small, .panel-lg .section-head p { margin: 0 0 12px; }
+.panel-lg .section-head { align-items: flex-start; gap: 12px; }
+.banner-ok { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: #f0fdf4; color: #166534; }
+.tips { margin: 8px 0 12px; padding-left: 20px; font-size: 14px; color: var(--muted); }
+.tips li { margin-bottom: 6px; }
+button.full { width: 100%; padding: 10px; }
+button.link.inline { margin: 0; font-size: inherit; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+.data-table th .badge { margin-left: 8px; }
+.backup-table th[scope="row"] { white-space: normal; overflow-wrap: anywhere; min-width: 160px; font-weight: 600; }
+.backup-table .badge { display: inline-block; margin: 2px 0 0; }
+
+.template-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.template-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.template-row.pending { border-color: #fcd34d; background: #fffbeb; }
+.template-row.retired { opacity: 0.6; }
+.template-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.template-main .vars { display: block; margin-top: 6px; white-space: normal; overflow-wrap: anywhere; }
+.template-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.template-side button { padding: 6px 12px; font-size: 13px; }
+
+.audit-filters { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 8px; margin: 4px 0 12px; }
+.audit-table td, .audit-table th { text-align: left; }
+.audit-table tr.sensitive .action { color: var(--err); font-weight: 600; }
+.audit-table .detail-row td { background: var(--bg); white-space: normal; }
+.audit-table pre { margin: 4px 0 8px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.channel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.channel-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.channel-list li > div { display: flex; flex-direction: column; min-width: 0; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.switch input { appearance: none; width: 36px; height: 20px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background 0.15s; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: var(--shadow); transition: left 0.15s; }
+.switch input:checked { background: var(--ok); }
+.switch input:checked::after { left: 18px; }
+.switch input:focus-visible { outline: 3px solid rgb(37 99 235 / 0.35); outline-offset: 2px; }
+
 /* ---------- มือถือ / แท็บเล็ต ---------- */
 @media (max-width: 820px) {
   .app { padding: 16px 16px 40px; }
@@ -556,4 +606,21 @@ button.danger-solid:hover:not(:disabled) { background: #b91c1c; }
   .info-list { grid-template-columns: 1fr; gap: 0; }
   .info-list dd { margin-bottom: 8px; }
   .mini-stats strong { font-size: 13px; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .panel-lg { padding: 16px; }
+  .panel-lg .section-head { flex-direction: column; align-items: stretch; }
+  .audit-filters { grid-template-columns: 1fr 1fr; }
+  .audit-filters select, .audit-filters input:not([type="date"]) { grid-column: 1 / -1; }
+  .audit-filters input[type="date"] { grid-column: auto; }
+  .hide-sm { display: none; }
+  .audit-filters > * { min-width: 0; }
+  /* ตารางไฟล์สำรอง → การ์ดซ้อนบนมือถือ (ปุ่มกู้คืนอยู่ในจอเสมอ) */
+  .backup-table thead { display: none; }
+  .backup-table, .backup-table tbody { display: block; }
+  .backup-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .backup-table th, .backup-table td { border: 0; padding: 0; text-align: left; }
+  .backup-table th[scope="row"] { flex-basis: 100%; min-width: 0; }
+  .backup-table td:last-child { margin-left: auto; }
+  .template-row { flex-direction: column; }
+  .template-side { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
 }

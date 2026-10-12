@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
+import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectCreatePage } from "./pages/ProjectCreatePage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
@@ -7,9 +8,9 @@ import { ProjectListPage } from "./pages/ProjectListPage";
 import { VendorsPage } from "./pages/VendorsPage";
 import type { MethodInfo } from "./types";
 
-interface Me { full_name_th: string; roles: string[]; permissions: string[] }
+interface Me { user_id: number; full_name_th: string; roles: string[]; permissions: string[] }
 
-type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" };
+type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" } | { name: "admin" };
 
 const ROLE_TH: Record<string, string> = {
   ADMIN: "ผู้ดูแลระบบ", PROCUREMENT_OFFICER: "เจ้าหน้าที่พัสดุ", HEAD_OF_PROCUREMENT: "หัวหน้าเจ้าหน้าที่",
@@ -63,6 +64,7 @@ export function App() {
   const canCreate = me?.permissions.includes("project:write") ?? false;
   const canViewDashboard = me?.permissions.includes("dashboard:view") ?? false;
   const can = (perm: string) => me?.permissions.includes(perm) ?? false;
+  const canAdmin = ["backup:run", "template:manage", "template:verify", "audit:read", "user:manage"].some(can);
   const toList = () => setView({ name: "list" });
 
   return (
@@ -84,6 +86,11 @@ export function App() {
           {canViewDashboard && (
             <button type="button" className={view.name === "dashboard" ? "on" : ""} onClick={() => setView({ name: "dashboard" })}>
               Dashboard
+            </button>
+          )}
+          {canAdmin && (
+            <button type="button" className={view.name === "admin" ? "on" : ""} onClick={() => setView({ name: "admin" })}>
+              ผู้ดูแลระบบ
             </button>
           )}
         </nav>
@@ -110,6 +117,7 @@ export function App() {
         )}
         {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} onBack={toList} />}
         {view.name === "dashboard" && <DashboardPage />}
+        {view.name === "admin" && me && <AdminPage permissions={me.permissions} userId={me.user_id} />}
         {view.name === "vendors" && (
           <VendorsPage canWrite={can("vendor:write")} canSanction={can("vendor:sanction")}
                        onOpenProject={(projectId) => setView({ name: "detail", projectId })} />

@@ -4,22 +4,24 @@ import json
 import re
 import uuid
 import zipfile
-from datetime import UTC, date, datetime
+from pathlib import Path
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from docxtpl import DocxTemplate
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal, get_db
-from app.core.security import Perm, require, verify_password
-from app.models import BackupJob, DocumentTemplate, DocumentType, User
+from app.core.security import Perm, require, require_any, verify_password
+from app.models import AuditLog, BackupJob, DocumentTemplate, DocumentType, User
 from app.schemas import RestoreIn
 from app.services import backup_service
 from app.services.audit_service import write_audit
+from app.services.export_service import sha256_file
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 DB = Annotated[Session, Depends(get_db)]
@@ -70,9 +72,21 @@ async def restore(body: RestoreIn, request: Request, db: DB,
     """กู้คืนข้อมูล: ต้องยืนยันรหัสผ่านซ้ำ + พิมพ์ข้อความยืนยัน (การกระทำที่ย้อนกลับยาก)."""
     if not verify_password(user.password_hash, body.password):
         raise HTTPException(403, "รหัสผ่านไม่ถูกต้อง")
+    try:
+        since = backup_service.snapshot_time(backup_service.read_manifest(body.file_name))
+    except backup_service.BackupError as exc:
+        raise HTTPException(409, str(exc)) from exc
     write_audit(db, action="RESTORE_REQUESTED", user_id=user.user_id, request=request,
                 new={"file_name": body.file_name})
-    # สำคัญ: ปิด transaction ของ request นี้ก่อน pg_restore — session ที่โหลด user ไว้ถือ lock ตาราง users
+    db.commit()
+
+    # Audit log ห้ามหายเพราะการกู้คืน: เก็บรายการที่เกิดหลังเวลาสำรองไว้ก่อน แล้วต่อท้าย chain ใหม่หลัง restore
+    # (ไม่งั้นผู้มีสิทธิ์ restore จะ "ลบร่องรอย" การกระทำของตนได้ด้วยการสำรองแล้วกู้คืน)
+    carried = [{c: getattr(a, c) for c in ("audit_id", "occurred_at", "user_id", "action", "entity_table", "entity_id",
+                                         "old_values", "new_values", "ip_address", "user_agent", "request_id",
+                                         "row_hash")}
+               for a in db.scalars(select(AuditLog).where(AuditLog.occurred_at >= since).order_by(AuditLog.audit_id))]
+    # สำคัญ: ปิด transaction ของ request นี้ก่อน pg_restore — session ที่อ่าน users/audit_logs ไว้ถือ lock ตาราง
     # ถ้าไม่ปิด DROP TABLE ของ pg_restore จะรอ lock ของเราเอง (deadlock ข้าม process)
     db.commit()
     try:
@@ -80,13 +94,26 @@ async def restore(body: RestoreIn, request: Request, db: DB,
     except backup_service.BackupError as exc:
         raise HTTPException(409, str(exc)) from exc
 
-    # หลัง restore ข้อมูลในตารางเป็นของ ณ เวลาที่สำรอง → บันทึกเหตุการณ์ restore ต่อท้ายใหม่
-    with SessionLocal.begin() as db:
-        requester = db.scalar(select(User.user_id).where(User.username == user.username))
-        db.add(BackupJob(job_type="RESTORE", file_name=body.file_name, status="SUCCESS",
-                         requested_by=requester or user.user_id, finished_at=datetime.now(UTC)))
-        write_audit(db, action="RESTORE", user_id=requester, request=request, new=result)
-    return result
+    with SessionLocal.begin() as db2:
+        users = set(db2.scalars(select(User.user_id)))
+        present = set(db2.scalars(select(AuditLog.row_hash)))     # กันซ้ำ: แถวที่อยู่ในไฟล์สำรองอยู่แล้ว
+        restored_ids = []
+        for r in carried:
+            if r["row_hash"] in present:
+                continue
+            original_id, original_hash = r.pop("audit_id"), r.pop("row_hash")
+            if r["user_id"] not in users:      # ผู้ใช้ที่สร้างหลังเวลาสำรองไม่มีในฐานข้อมูลที่กู้คืนแล้ว
+                r["user_id"] = None
+            db2.add(AuditLog(**r))             # trigger คำนวณ hash ใหม่ต่อท้าย chain → chain ยังตรวจสอบได้
+            restored_ids.append({"from_audit_id": original_id, "old_row_hash": original_hash})
+        db2.flush()
+        requester = db2.scalar(select(User.user_id).where(User.username == user.username))
+        if requester is not None:
+            db2.add(BackupJob(job_type="RESTORE", file_name=body.file_name, status="SUCCESS",
+                              requested_by=requester, finished_at=datetime.now(UTC)))
+        write_audit(db2, action="RESTORE", user_id=requester, request=request,
+                    new={**result, "username": user.username, "audit_rows_carried_over": restored_ids})
+    return {**result, "audit_rows_carried_over": len(restored_ids)}
 
 
 # ---------------------------------------------------------------------------
@@ -187,3 +214,69 @@ def verify_template(template_id: int, request: Request, db: DB,
 def verify_audit_chain(db: DB, _: Annotated[User, Depends(require(Perm.AUDIT_READ))]) -> dict:
     broken = db.scalar(text("SELECT fn_verify_audit_chain()"))
     return {"intact": broken is None, "first_broken_audit_id": broken}
+
+
+# ---------------------------------------------------------------------------
+# รายการสำหรับหน้าผู้ดูแลระบบ
+# ---------------------------------------------------------------------------
+TemplateViewer = Annotated[User, Depends(require_any(Perm.TEMPLATE_MANAGE, Perm.TEMPLATE_VERIFY))]
+
+
+@router.get("/document-types")
+def list_document_types(db: DB, _: TemplateViewer) -> list[dict]:
+    return [{"code": d.code, "name_th": d.name_th}
+            for d in db.scalars(select(DocumentType).order_by(DocumentType.document_type_id))]
+
+
+@router.get("/templates")
+def list_templates(db: DB, _: TemplateViewer) -> list[dict]:
+    """ทะเบียนแบบฟอร์ม: ตรวจ SHA-256 ของไฟล์จริงด้วย เพื่อให้เห็นทันทีถ้าไฟล์บน storage ถูกแก้."""
+    users = {u.user_id: u.personnel.full_name_th for u in db.scalars(select(User))}
+    rows = db.scalars(select(DocumentTemplate).order_by(DocumentTemplate.document_type_id,
+                                                        DocumentTemplate.template_id.desc())).all()
+    out = []
+    for t in rows:
+        path = Path(t.storage_path)
+        out.append({
+            "template_id": t.template_id, "document_type_code": t.document_type.code,
+            "document_type_name_th": t.document_type.name_th, "version_label": t.version_label,
+            "file_format": t.file_format, "source_url": t.source_url, "cgd_reference": t.cgd_reference,
+            "effective_from": t.effective_from, "is_active": t.is_active,
+            "status": "ACTIVE" if t.is_active else ("PENDING" if t.verified_by is None else "RETIRED"),
+            "variables": t.variable_schema.get("variables", []),
+            "uploaded_by": users.get(t.uploaded_by), "verified_by": users.get(t.verified_by),
+            "uploaded_by_id": t.uploaded_by,
+            "file_ok": path.is_file() and sha256_file(path) == t.sha256,
+        })
+    return out
+
+
+@router.get("/audit")
+def list_audit(db: DB, _: Annotated[User, Depends(require(Perm.AUDIT_READ))],
+               action: Annotated[str | None, Query(pattern=r"^[A-Z_]{2,50}$")] = None,
+               username: Annotated[str | None, Query(max_length=60)] = None,
+               date_from: date | None = None, date_to: date | None = None,
+               before_id: Annotated[int | None, Query(gt=0)] = None,
+               limit: Annotated[int, Query(ge=1, le=200)] = 50) -> dict:
+    """Audit log แบบแบ่งหน้าด้วย keyset (before_id) — เร็วคงที่แม้ตารางใหญ่ ไม่ใช้ OFFSET."""
+    stmt = (select(AuditLog, User.username).outerjoin(User, User.user_id == AuditLog.user_id)
+            .order_by(AuditLog.audit_id.desc()).limit(limit + 1))
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
+    if username:
+        stmt = stmt.where(User.username == username)
+    if date_from:
+        stmt = stmt.where(AuditLog.occurred_at >= date_from)
+    if date_to:
+        stmt = stmt.where(AuditLog.occurred_at < date_to + timedelta(days=1))
+    if before_id:
+        stmt = stmt.where(AuditLog.audit_id < before_id)
+    rows = db.execute(stmt).all()
+    page = rows[:limit]
+    return {
+        "items": [{"audit_id": a.audit_id, "occurred_at": a.occurred_at, "username": uname, "action": a.action,
+                   "entity_table": a.entity_table, "entity_id": a.entity_id, "ip_address": a.ip_address,
+                   "old_values": a.old_values, "new_values": a.new_values, "row_hash": a.row_hash}
+                  for a, uname in page],
+        "next_before_id": page[-1][0].audit_id if len(rows) > limit else None,
+    }

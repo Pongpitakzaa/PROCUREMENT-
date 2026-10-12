@@ -213,3 +213,51 @@ export interface VendorDraft {
   email: string;
   bank_account: string;
 }
+
+export interface BackupManifest {
+  file_name: string;
+  sha256: string;
+  size_bytes: number;
+  created_at: string;
+  requested_by: string;
+  format: string;
+}
+
+export interface TemplateRow {
+  template_id: number;
+  document_type_code: string;
+  document_type_name_th: string;
+  version_label: string;
+  file_format: "DOCX" | "XLSX";
+  source_url: string;
+  cgd_reference: string;
+  effective_from: string;
+  is_active: boolean;
+  status: "ACTIVE" | "PENDING" | "RETIRED";
+  variables: string[];
+  uploaded_by: string | null;
+  verified_by: string | null;
+  uploaded_by_id: number;
+  file_ok: boolean;
+}
+
+export interface AuditRow {
+  audit_id: number;
+  occurred_at: string;
+  username: string | null;
+  action: string;
+  entity_table: string | null;
+  entity_id: string | null;
+  ip_address: string | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  row_hash: string;
+}
+
+export interface LineChannel {
+  channel_id: number;
+  name_th: string;
+  line_to_masked: string;
+  is_active: boolean;
+  last_sent_at: string | null;
+}

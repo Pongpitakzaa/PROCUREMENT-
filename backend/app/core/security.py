@@ -124,3 +124,12 @@ def require(*perms: Perm):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "ไม่มีสิทธิ์ดำเนินการนี้")
         return user
     return checker
+
+
+def require_any(*perms: Perm):
+    """Dependency factory: มี permission ข้อใดข้อหนึ่งก็พอ (เช่น หน้าแบบฟอร์ม: ผู้อัปโหลด หรือ ผู้ตรวจรับรอง)."""
+    def checker(user: CurrentUser) -> User:
+        if not set(perms) & permissions_of(user.role_codes):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "ไม่มีสิทธิ์ดำเนินการนี้")
+        return user
+    return checker

@@ -23,7 +23,7 @@ import subprocess
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO
 
@@ -150,6 +150,8 @@ def create_backup(requested_by: str, suffix: str = "", _locked: bool = False) ->
 
     s = get_settings()
     env, conn_args, dbname = _pg_env_and_args()
+    # เวลาก่อนเริ่ม pg_dump: ทุกอย่างที่ commit หลังจากนี้อาจไม่อยู่ในไฟล์ → ใช้ตอน restore เพื่อยก audit log ต่อ
+    snapshot_at = datetime.now(UTC)
     stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
     out = s.backup_dir / f"procurement-{stamp}{suffix}.dump.enc"
 
@@ -167,7 +169,8 @@ def create_backup(requested_by: str, suffix: str = "", _locked: bool = False) ->
         tmp_out.rename(out)   # atomic: ไม่มีไฟล์ครึ่ง ๆ ที่ดูเหมือนสมบูรณ์
 
     manifest = {"file_name": out.name, "sha256": _sha256(out), "size_bytes": out.stat().st_size,
-                "created_at": datetime.now().isoformat(timespec="seconds"), "requested_by": requested_by,
+                "created_at": datetime.now().isoformat(timespec="seconds"), "snapshot_at": snapshot_at.isoformat(),
+                "requested_by": requested_by,
                 "format": "pg_dump-custom+aes256gcm-chunked/v1"}
     out.with_name(out.name + ".json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
     out.chmod(0o600)
@@ -182,14 +185,26 @@ def list_backups() -> list[dict]:
     return sorted(items, key=lambda m: m["created_at"], reverse=True)
 
 
+def read_manifest(file_name: str) -> dict:
+    path = _safe_backup_path(file_name)
+    manifest_path = path.with_name(path.name + ".json")
+    if not manifest_path.is_file():
+        raise BackupError("ไม่พบ manifest ของไฟล์สำรอง")
+    return json.loads(manifest_path.read_text())
+
+
+def snapshot_time(manifest: dict) -> datetime:
+    """เวลาที่ข้อมูลในไฟล์สำรองเป็นปัจจุบัน (ไฟล์รุ่นเก่าไม่มี snapshot_at → ใช้ created_at เวลาท้องถิ่นแบบประมาณ)."""
+    if manifest.get("snapshot_at"):
+        return datetime.fromisoformat(manifest["snapshot_at"])
+    return datetime.fromisoformat(manifest["created_at"]).astimezone()
+
+
 def restore_backup(file_name: str, requested_by: str) -> dict:
     """กู้คืนแบบ all-or-nothing (--single-transaction): ถ้าผิดพลาดกลางทาง ฐานข้อมูลคงสภาพเดิม."""
     with _exclusive_lock():
         path = _safe_backup_path(file_name)
-        manifest_path = path.with_name(path.name + ".json")
-        if not manifest_path.is_file():
-            raise BackupError("ไม่พบ manifest ของไฟล์สำรอง")
-        manifest = json.loads(manifest_path.read_text())
+        manifest = read_manifest(file_name)
         if _sha256(path) != manifest["sha256"]:
             raise BackupError("checksum ไม่ตรง — ไฟล์สำรองอาจถูกแก้ไข ยกเลิกการกู้คืน")
 

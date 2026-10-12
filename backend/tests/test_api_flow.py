@@ -290,5 +290,11 @@ def test_full_specific_method_flow(client, monkeypatch):
     assert client.get(f"/api/projects/{pid}", headers=officer).json()["status"] == "AWARDED"
     assert client.get(f"/api/projects/{pid + 1}", headers=officer).status_code == 404
     assert client.get("/api/admin/audit/verify", headers=admin).json()["intact"] is True
+    # audit ของสิ่งที่เกิดหลังเวลาสำรองต้องไม่หายไปกับการกู้คืน (ยกต่อท้าย chain ใหม่)
+    assert r.json()["audit_rows_carried_over"] >= 3
+    actions = [a["action"] for a in client.get("/api/admin/audit", params={"limit": 20}, headers=admin).json()["items"]]
+    assert "RESTORE" in actions[:3] and {"BACKUP", "RESTORE_REQUESTED", "CREATE"} <= set(actions)
+    created = client.get("/api/admin/audit", params={"action": "CREATE", "limit": 50}, headers=admin).json()["items"]
+    assert any(a["entity_table"] == "projects" and a["entity_id"] == str(pid + 1) for a in created)
     manifests = client.get("/api/admin/backups", headers=admin).json()
     assert len(manifests) == 2 and json.dumps(manifests)
