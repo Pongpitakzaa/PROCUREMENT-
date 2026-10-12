@@ -1,0 +1,12 @@
+{
+  "name": "procurement-security-audit",
+  "private": true,
+  "type": "module",
+  "description": "ตรวจการตรวจสอบข้อมูล/ความปลอดภัยในเบราว์เซอร์จริง (กลุ่ม D)",
+  "scripts": {
+    "browser": "node browser_audit.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.48.2"
+  }
+}

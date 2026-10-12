@@ -57,6 +57,13 @@ cd backend && TEST_DATABASE_URL=postgresql+psycopg://USER:PASS@localhost:5432/pr
 cd frontend && npm test && npm run typecheck
 ```
 
+**ทดสอบการตรวจสอบข้อมูลและความปลอดภัยกับระบบที่รันจริง** (68 ข้อ: API, ฐานข้อมูล, การโจมตี, เบราว์เซอร์) —
+ดู [tools/security-audit/README.md](tools/security-audit/README.md)
+
+```bash
+cd tools/security-audit && AUDIT_DB_DSN="dbname=procurement_test" AUDIT_PASSWORD='…' ./run.sh
+```
+
 `backend/tests/test_api_flow.py` ทดสอบครบวงจรบน PostgreSQL จริง: login/lockout → สร้างโครงการ (ตรวจเพดานวงเงิน)
 → workflow วิธีเฉพาะเจาะจงทุกขั้น (บังคับลำดับ, optimistic lock, SoD) → ลงทะเบียน/รับรองแบบฟอร์ม → ส่งออก DOCX/PDF
 → แชร์ LINE + ลิงก์ดาวน์โหลดลงนาม → Dashboard/Excel → ตรวจ audit chain → Backup → Restore
