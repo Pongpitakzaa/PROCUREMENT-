@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบจัดซื้อจัดจ้างภาครัฐ</title>
+<meta name="description" content="ระบบบริหารจัดการและสร้างเอกสารจัดซื้อจัดจ้างภาครัฐ — ภาพหน้าจอระบบจริงและเอกสารประกอบ">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1l7 7-7 7-7-7z' fill='%232563eb'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ธีม B ของตัวระบบ: พื้นฟ้าอ่อน การ์ดขาว สีหลักน้ำเงิน */
+  :root {
+    --bg: #f3f6fb; --card: #ffffff; --ink: #0f172a; --muted: #64748b; --line: #e2e8f0;
+    --accent: #2563eb; --accent-soft: #eff4ff; --shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1220; --card: #111a2e; --ink: #e2e8f0; --muted: #94a3b8; --line: #1e293b;
+            --accent: #60a5fa; --accent-soft: #172554; --shadow: none; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 "Sarabun", system-ui, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 64px; }
+  .brand { color: var(--accent); font-weight: 700; }
+  h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.35; margin: 4px 0 8px; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 65ch; margin: 0 0 32px; }
+  h2 { font-size: 20px; margin: 40px 0 12px; }
+  .shots { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  figure { margin: 0; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+  .phone img { max-height: 620px; object-fit: cover; object-position: top; }
+  figcaption { font-size: 14px; color: var(--muted); padding: 8px 4px 0; }
+  .note { font-size: 14px; color: var(--muted); margin-top: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { display: block; background: var(--card); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px;
+          color: inherit; text-decoration: none; border: 1px solid transparent; }
+  .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+  .card strong { color: var(--accent); display: block; }
+  .card span { font-size: 14px; color: var(--muted); }
+  ul.features { padding-left: 20px; margin: 0; columns: 2 280px; column-gap: 32px; }
+  ul.features li { break-inside: avoid; margin-bottom: 4px; }
+  footer { margin-top: 48px; font-size: 14px; color: var(--muted); }
+  @media (max-width: 720px) { .shots { grid-template-columns: 1fr; } .phone { max-width: 360px; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">◆ e-Procurement</div>
+  <h1>ระบบบริหารจัดการและสร้างเอกสารจัดซื้อจัดจ้างภาครัฐ</h1>
+  <p class="lede">
+    รองรับวิธีประกาศเชิญชวนทั่วไป (e-market / e-bidding) วิธีคัดเลือก และวิธีเฉพาะเจาะจง ตาม พ.ร.บ.การจัดซื้อจัดจ้างฯ พ.ศ. 2560
+    สร้างเอกสารจากแบบฟอร์มกรมบัญชีกลาง ใช้งานได้ทั้งบนคอมพิวเตอร์และมือถือ
+  </p>
+
+  <h2>หน้าหลักของระบบ</h2>
+  <div class="shots">
+    <figure>
+      <img src="screenshots/desktop-2-main.png" width="1351" height="977"
+           alt="หน้ารายการโครงการจัดซื้อจัดจ้าง ปีงบประมาณ 2570 แสดง 6 โครงการพร้อมวงเงิน ความคืบหน้า และสถานะ">
+      <figcaption>รายการโครงการ — คอมพิวเตอร์</figcaption>
+    </figure>
+    <figure class="phone">
+      <img src="screenshots/mobile-2-main.png" width="1170" height="5601"
+           alt="หน้ารายการโครงการบน iPhone">
+      <figcaption>รายการโครงการ — iPhone</figcaption>
+    </figure>
+  </div>
+  <p class="note">
+    ภาพจากระบบจริง (FastAPI + PostgreSQL) ด้วยข้อมูลตัวอย่าง ชื่อบุคคลเป็นชื่อสมมติ ·
+    หน้าเข้าสู่ระบบ: <a href="screenshots/desktop-1-login.png">คอมพิวเตอร์</a> · <a href="screenshots/mobile-1-login.png">มือถือ</a>
+  </p>
+
+  <h2>ความสามารถหลัก</h2>
+  <ul class="features">
+    <li>ขั้นตอนงานเปลี่ยนตามวิธีจัดหาและวงเงิน</li>
+    <li>ตรวจเพดานวงเงินตามมาตรา 56 และการแบ่งซื้อแบ่งจ้าง</li>
+    <li>ตรวจ checksum เลขประจำตัวผู้เสียภาษี 13 หลัก และบัญชีผู้ทิ้งงาน</li>
+    <li>ผู้เสนอและผู้อนุมัติต้องเป็นคนละคน</li>
+    <li>สร้างเอกสาร Word / PDF / Excel ตามแบบฟอร์มกรมบัญชีกลาง</li>
+    <li>แจ้งเตือนผ่าน LINE</li>
+    <li>Dashboard สรุปผลการจัดซื้อจัดจ้างรายปีงบประมาณ</li>
+    <li>สำรองและกู้คืนข้อมูลจากหน้าเว็บ (เข้ารหัส)</li>
+    <li>Audit log แก้ไขย้อนหลังไม่ได้</li>
+    <li>ติดตั้งเป็นแอปบน iOS / Android</li>
+  </ul>
+
+  <h2>เอกสารประกอบ</h2>
+  <div class="grid">
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-/blob/main/deploy/README.md">
+      <strong>ติดตั้งบนเซิร์ฟเวอร์จริง</strong><span>Docker, HTTPS, สำรองข้อมูล, อัปเดต</span></a>
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-/blob/main/docs/01-architecture-workflow.md">
+      <strong>สถาปัตยกรรมและ Workflow</strong><span>ขั้นตอนตามวิธีจัดหา</span></a>
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-/blob/main/docs/03-security-validation.md">
+      <strong>ความปลอดภัยและการตรวจข้อมูล</strong><span>สิทธิ์ผู้ใช้ การเข้ารหัส กฎตรวจสอบ</span></a>
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-/blob/main/docs/04-cgd-templates.md">
+      <strong>แบบฟอร์มกรมบัญชีกลาง</strong><span>การนำแบบฟอร์มเข้าระบบ</span></a>
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-/blob/main/docs/05-mobile-ios-android.md">
+      <strong>ใช้งานบน iOS / Android</strong><span>ติดตั้งเป็นแอปจากเบราว์เซอร์</span></a>
+    <a class="card" href="https://github.com/Pongpitakzaa/PROCUREMENT-">
+      <strong>ซอร์สโค้ด</strong><span>GitHub repository</span></a>
+  </div>
+
+  <footer>หน้านี้แสดงภาพหน้าจอเท่านั้น — ระบบจริงต้องติดตั้งบนเซิร์ฟเวอร์ของหน่วยงาน</footer>
+</main>
+</body>
+</html>
