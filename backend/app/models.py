@@ -256,6 +256,7 @@ class DocumentTemplate(Base):
     cgd_reference: Mapped[str] = mapped_column(String(255))
     file_format: Mapped[str] = mapped_column(String(5))
     storage_path: Mapped[str] = mapped_column(String(500))
+    content: Mapped[bytes | None] = mapped_column(BYTEA, deferred=True)   # โหลดเมื่อต้องสร้างไฟล์คืนเท่านั้น
     sha256: Mapped[str] = mapped_column(String(64))
     variable_schema: Mapped[dict] = mapped_column(JSONB)
     effective_from: Mapped[date]

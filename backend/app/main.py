@@ -4,7 +4,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.exc import IntegrityError, InternalError
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -35,6 +35,17 @@ app.add_middleware(
 )
 
 
+# CSP ของหน้าเว็บ React (ตรงกับ deploy/Caddyfile)
+SPA_CSP = ("default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+           "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; "
+           "manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
+STATIC_DIR = settings.static_dir.resolve() if settings.static_dir and settings.static_dir.is_dir() else None
+
+
+def _is_web_page(path: str) -> bool:
+    return STATIC_DIR is not None and not path.startswith("/api/") and path != "/healthz"
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     request.state.request_id = uuid.uuid4()
@@ -44,8 +55,14 @@ async def security_headers(request: Request, call_next):
     h["X-Content-Type-Options"] = "nosniff"
     h["X-Frame-Options"] = "DENY"
     h["Referrer-Policy"] = "no-referrer"
-    h["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
-    h["Cache-Control"] = "no-store"   # เอกสารราชการ/ข้อมูลส่วนบุคคล ห้าม cache
+    if _is_web_page(request.url.path):
+        # หน้าเว็บ (เมื่อ API เสิร์ฟหน้าเว็บเอง): CSP เดียวกับ deploy/Caddyfile + cache ตามชนิดไฟล์
+        h["Content-Security-Policy"] = SPA_CSP
+        h["Cache-Control"] = ("public, max-age=31536000, immutable" if request.url.path.startswith("/assets/")
+                              else "no-cache")
+    else:
+        h["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; object-src 'none'"
+        h["Cache-Control"] = "no-store"   # เอกสารราชการ/ข้อมูลส่วนบุคคล ห้าม cache
     if is_prod:
         h["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     return response
@@ -117,3 +134,16 @@ for r in (auth.router, projects.router, vendors.router, users.router, registry.r
 @app.get("/healthz", include_in_schema=False)
 def healthz() -> dict:
     return {"ok": True}
+
+
+if STATIC_DIR is not None:
+    # เสิร์ฟหน้าเว็บ React จากโปรเซสเดียวกับ API (PROC_STATIC_DIR) — ใช้บนแพลตฟอร์มที่มี service เดียว เช่น Render
+    # ลงทะเบียนหลัง router ของ API ทั้งหมด จึงไม่ทับ /api/*
+    @app.get("/{path:path}", include_in_schema=False)
+    def web_page(path: str):
+        if path.startswith("api/"):
+            return _problem(404, "ไม่พบ endpoint")
+        target = (STATIC_DIR / path).resolve()
+        if path and target.is_file() and STATIC_DIR in target.parents:   # กัน path traversal
+            return FileResponse(target)
+        return FileResponse(STATIC_DIR / "index.html")   # หน้าเว็บเป็น SPA

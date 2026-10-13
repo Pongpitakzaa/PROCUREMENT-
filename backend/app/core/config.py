@@ -1,8 +1,9 @@
 """การตั้งค่าทั้งหมดอ่านจาก Environment Variables / Secret Manager — ห้าม hard-code secret ในโค้ด."""
+import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, PostgresDsn, SecretStr
+from pydantic import Field, PostgresDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,7 +22,10 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
 
     # กุญแจเข้ารหัสข้อมูลสำคัญ (AES-256-GCM) — base64 ของ 32 bytes, รองรับหมุนเวียนกุญแจด้วย key id
-    data_keys: dict[str, SecretStr] = Field(description='{"k1": "<base64 32 bytes>"}')
+    data_keys: dict[str, SecretStr] = Field(default_factory=dict, description='{"k1": "<base64 32 bytes>"}')
+    # ทางเลือก: กุญแจเดียว (PROC_DATA_KEY) ใช้เป็น key id = active_data_key_id — สำหรับแพลตฟอร์มที่สร้างค่าลับให้
+    # ทีละค่า เช่น Render (generateValue = base64 ของ 256 bit) ตั้งเป็น JSON ไม่ได้
+    data_key: SecretStr | None = None
     active_data_key_id: str = "k1"
     blind_index_key: SecretStr = Field(min_length=32)   # HMAC key สำหรับค้นหาเลขบัตรที่เข้ารหัสแล้ว
 
@@ -42,6 +46,40 @@ class Settings(BaseSettings):
     backup_key: SecretStr = Field(description="base64 32 bytes — แยกจาก data_keys")
     libreoffice_bin: str = "soffice"
     pg_bin_dir: Path = Path("/usr/bin")
+
+    # หน้าเว็บ (React build) — ตั้งเมื่อ API เสิร์ฟหน้าเว็บเอง (เช่น Render) · ไม่ตั้ง = ใช้ reverse proxy (Caddy)
+    static_dir: Path | None = None
+
+    # ผู้ดูแลระบบคนแรก (สร้างตอนเริ่มระบบครั้งแรกเมื่อยังไม่มีผู้ใช้เลย — ดู app.cli init-db)
+    bootstrap_admin_username: str | None = None
+    bootstrap_admin_password: SecretStr | None = None
+    bootstrap_admin_name: str | None = None
+    bootstrap_admin_citizen_id: str | None = None
+    bootstrap_department_name: str | None = None
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _psycopg_driver(cls, v: object) -> object:
+        """รับ URL รูปแบบ postgresql:// / postgres:// (เช่นจาก Render) แล้วใช้ไดรเวอร์ psycopg 3."""
+        if isinstance(v, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if v.startswith(prefix):
+                    return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
+    @model_validator(mode="after")
+    def _derived(self) -> "Settings":
+        if not self.data_keys:
+            if self.data_key is None:
+                raise ValueError("ต้องตั้ง PROC_DATA_KEYS (JSON) หรือ PROC_DATA_KEY (กุญแจเดียว)")
+            self.data_keys = {self.active_data_key_id: self.data_key}
+        if self.active_data_key_id not in self.data_keys:
+            raise ValueError(f"ไม่พบกุญแจ {self.active_data_key_id} ใน PROC_DATA_KEYS")
+        # Render ตั้ง RENDER_EXTERNAL_URL ให้อัตโนมัติ → ลิงก์ดาวน์โหลดเอกสารที่ส่งทาง LINE ใช้โดเมนจริง
+        render_url = os.environ.get("RENDER_EXTERNAL_URL")
+        if render_url and "public_base_url" not in self.model_fields_set:
+            self.public_base_url = render_url.rstrip("/")
+        return self
 
 
 @lru_cache

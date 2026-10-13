@@ -1,0 +1,57 @@
+# Render Blueprint — ติดตั้งระบบจริงบน Render ด้วยการคลิก (ดูขั้นตอนใน deploy/RENDER.md)
+#   procurement     : web service (Docker) = API + หน้าเว็บในโปรเซสเดียว · HTTPS ให้โดย Render
+#   procurement-db  : PostgreSQL 16 รับการเชื่อมต่อเฉพาะเครือข่ายภายในของ Render
+# ค่าลับ (JWT, กุญแจเข้ารหัส) Render สุ่มให้ตอนสร้าง (generateValue = base64 ของ 256 bit) ไม่มีใน repo
+# ค่า sync: false Render จะถามตอนสร้าง Blueprint ครั้งแรก
+
+databases:
+  - name: procurement-db
+    plan: free                     # ใช้งานจริงต่อเนื่อง: เปลี่ยนเป็น basic-256mb ขึ้นไป (แผนฟรีหมดอายุ 30 วัน)
+    region: singapore
+    postgresMajorVersion: "16"     # ต้องตรงกับ pg_dump 16 ใน image (ระบบสำรองข้อมูล)
+    databaseName: procurement
+    user: proc_app
+    ipAllowList: []                # ไม่เปิดให้เชื่อมต่อจากอินเทอร์เน็ต
+
+services:
+  - type: web
+    name: procurement
+    runtime: docker
+    plan: free                     # ใช้งานจริง: starter ขึ้นไป (แผนฟรีหลับเมื่อไม่มีผู้ใช้ 15 นาที)
+    region: singapore
+    dockerfilePath: ./deploy/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true               # merge เข้า main แล้ว deploy ใหม่อัตโนมัติ
+    envVars:
+      - key: PROC_DATABASE_URL
+        fromDatabase:
+          name: procurement-db
+          property: connectionString
+      - key: PROC_JWT_SECRET
+        generateValue: true
+      - key: PROC_BLIND_INDEX_KEY
+        generateValue: true
+      - key: PROC_DATA_KEY          # กุญแจเข้ารหัสเลขประจำตัวประชาชน/บัญชีธนาคาร — ห้ามเปลี่ยนหลังเริ่มใช้งาน
+        generateValue: true
+      - key: PROC_BACKUP_KEY
+        generateValue: true
+      - key: PROC_STATIC_DIR        # API เสิร์ฟหน้าเว็บเอง
+        value: /app/static
+      - key: UVICORN_WORKERS        # แผนฟรี/starter มี RAM 512 MB (LibreOffice ใช้หน่วยความจำมาก)
+        value: "1"
+      - key: PORT
+        value: "8000"
+      # ผู้ดูแลระบบคนแรก — สร้างอัตโนมัติเมื่อระบบยังไม่มีผู้ใช้ (หลังเข้าใช้แล้วลบ PROC_BOOTSTRAP_ADMIN_PASSWORD ได้)
+      - key: PROC_BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: PROC_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: PROC_BOOTSTRAP_ADMIN_NAME
+        sync: false
+      - key: PROC_BOOTSTRAP_ADMIN_CITIZEN_ID
+        sync: false
+      - key: PROC_BOOTSTRAP_DEPARTMENT_NAME
+        sync: false
+      - key: PROC_LINE_CHANNEL_ACCESS_TOKEN
+        sync: false

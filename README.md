@@ -15,6 +15,8 @@
 
 **ทดลองใช้งานบนเว็บ:** https://pongpitakzaa.github.io/PROCUREMENT-/app/ (หน้าจอจริง + ข้อมูลตัวอย่าง ประมวลผลในเบราว์เซอร์)
 
+**ติดตั้งระบบจริงบนเว็บ (Render):** [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Pongpitakzaa/PROCUREMENT-) — ขั้นตอนใน [deploy/RENDER.md](deploy/RENDER.md)
+
 | คอมพิวเตอร์ | มือถือ (iPhone) |
 |---|---|
 | ![หน้าหลัก: รายการโครงการ](docs/screenshots/desktop-2-main.png) | ![หน้าหลักบนมือถือ](docs/screenshots/mobile-2-main.png) |
@@ -31,6 +33,7 @@
 | 4 | การนำแบบฟอร์มกรมบัญชีกลางเข้าระบบ | [docs/04-cgd-templates.md](docs/04-cgd-templates.md) |
 | 5 | ใช้งานบน iOS / Android (ติดตั้งเป็นแอป) | [docs/05-mobile-ios-android.md](docs/05-mobile-ios-android.md) |
 | 6 | **ติดตั้งบนเซิร์ฟเวอร์จริง (Docker)** | [deploy/README.md](deploy/README.md) |
+| 7 | **ติดตั้งบน Render (คลิกจาก GitHub)** | [deploy/RENDER.md](deploy/RENDER.md) |
 
 ## โค้ดหลักที่ควรอ่าน
 

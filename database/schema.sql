@@ -247,6 +247,9 @@ CREATE TABLE document_templates (
     cgd_reference     VARCHAR(255) NOT NULL,   -- เลขหนังสือเวียน/ประกาศ กวพ. ที่กำหนดแบบ
     file_format       VARCHAR(5)   NOT NULL CHECK (file_format IN ('DOCX','XLSX')),
     storage_path      VARCHAR(500) NOT NULL,
+    -- สำเนาไฟล์ในฐานข้อมูล: อยู่ในไฟล์สำรอง (pg_dump) ด้วย และสร้างไฟล์บน disk คืนได้เมื่อ storage ถูกล้าง
+    -- (เช่น แพลตฟอร์มที่ระบบไฟล์ไม่ถาวร) — ตรวจกับ sha256 ทุกครั้งก่อนใช้
+    content           BYTEA,
     sha256            CHAR(64)     NOT NULL,   -- ตรวจว่าไฟล์ไม่ถูกแก้ไขหลังตรวจรับรอง
     variable_schema   JSONB        NOT NULL,   -- รายชื่อตัวแปร + ชนิดข้อมูลที่แบบฟอร์มต้องการ
     effective_from    DATE         NOT NULL,

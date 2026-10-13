@@ -1,5 +1,18 @@
 # API (FastAPI) — Ubuntu 24.04: มี PostgreSQL 16 client (pg_dump/pg_restore รุ่นเดียวกับฐานข้อมูล),
 # LibreOffice (แปลง DOCX → PDF) และฟอนต์ไทยใน repository มาตรฐาน
+# มีหน้าเว็บ (React build) ใน /app/static ด้วย — ใช้เมื่อตั้ง PROC_STATIC_DIR (เช่น Render: service เดียว)
+# ส่วน docker-compose เสิร์ฟหน้าเว็บผ่าน Caddy (web.Dockerfile) ตามเดิม
+
+FROM node:22-bookworm-slim AS web
+WORKDIR /src
+COPY frontend/package.json frontend/package-lock.json ./
+COPY deploy/extra-ca/ /extra-ca/
+RUN if ls /extra-ca/*.crt >/dev/null 2>&1; then cat /extra-ca/*.crt > /tmp/extra-ca.pem; \
+        export NODE_EXTRA_CA_CERTS=/tmp/extra-ca.pem; fi; \
+    npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM ubuntu:24.04
 
 # เครือข่ายราชการที่ต้องใช้ mirror ภายใน: --build-arg UBUNTU_MIRROR=https://mirror.example.go.th/ubuntu
@@ -37,6 +50,8 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
+COPY database ./database
+COPY --from=web /src/dist ./static
 COPY deploy/api-entrypoint.sh /usr/local/bin/api-entrypoint
 RUN chmod 0755 /usr/local/bin/api-entrypoint \
     && mkdir -p /app/storage/templates /app/storage/outputs /app/storage/backups \
@@ -47,9 +62,9 @@ ENV PROC_ENVIRONMENT=production \
     PROC_TEMPLATE_DIR=/app/storage/templates PROC_OUTPUT_DIR=/app/storage/outputs PROC_BACKUP_DIR=/app/storage/backups \
     PROC_LIBREOFFICE_BIN=soffice PROC_PG_BIN_DIR=/usr/lib/postgresql/16/bin
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status != 200)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import os,urllib.request,sys; sys.exit(urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/healthz', timeout=4).status != 200)"
 ENTRYPOINT ["api-entrypoint"]
-# --proxy-headers: IP ผู้ใช้จริงจาก Caddy ลง audit log (API ไม่เปิดพอร์ตออกนอก จึงเชื่อ header จาก proxy ได้)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", \
-     "--proxy-headers", "--forwarded-allow-ips", "*", "--no-server-header"]
+# PORT: แพลตฟอร์มอย่าง Render กำหนดให้ · UVICORN_WORKERS: เครื่อง RAM น้อย (512 MB) ใช้ 1
+# --proxy-headers: IP ผู้ใช้จริงจาก reverse proxy ลง audit log (API ไม่เปิดพอร์ตตรง จึงเชื่อ header จาก proxy ได้)
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port \"${PORT:-8000}\" --workers \"${UVICORN_WORKERS:-2}\" --proxy-headers --forwarded-allow-ips '*' --no-server-header"]
