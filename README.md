@@ -13,6 +13,8 @@
 
 ## ภาพหน้าจอ
 
+**ทดลองใช้งานบนเว็บ:** https://pongpitakzaa.github.io/PROCUREMENT-/app/ (หน้าจอจริง + ข้อมูลตัวอย่าง ประมวลผลในเบราว์เซอร์)
+
 | คอมพิวเตอร์ | มือถือ (iPhone) |
 |---|---|
 | ![หน้าหลัก: รายการโครงการ](docs/screenshots/desktop-2-main.png) | ![หน้าหลักบนมือถือ](docs/screenshots/mobile-2-main.png) |
@@ -44,7 +46,7 @@
 
 ## เวอร์ชันสาธิตบนเว็บ
 
-`cd frontend && npm run build:demo` → `dist-demo/procurement-demo.html` หน้าเว็บไฟล์เดียว ใช้หน้าจอจริงทั้งหมด
+`cd frontend && npm run build:demo` → `docs/app/index.html` (GitHub Pages) และ `dist-demo/procurement-demo.html` หน้าเว็บไฟล์เดียว ใช้หน้าจอจริงทั้งหมด
 แต่เปลี่ยน backend เป็นเซิร์ฟเวอร์จำลองในเบราว์เซอร์ (`frontend/src/demo/`) ที่ตรวจด้วยกฎชุดเดียวกัน
 ข้อมูลตั้งต้น `snapshot.json` บันทึกจากคำตอบของ API จริงบนฐานข้อมูลตัวอย่าง (ไม่มีข้อมูลจริงของหน่วยงาน) ·
 การสร้างเอกสาร Word/PDF, LINE, สำรอง/กู้คืน ปิดไว้เพราะต้องใช้เซิร์ฟเวอร์จริง · build ปกติไม่มีโค้ดส่วนนี้

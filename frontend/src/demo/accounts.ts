@@ -7,3 +7,6 @@ export const DEMO_USERS = [
   { username: "director", role: "ผู้บริหาร", hint: "อนุมัติสั่งซื้อ ดู Dashboard" },
   { username: "admin", role: "ผู้ดูแลระบบ", hint: "ผู้ใช้ แบบฟอร์ม Audit log" },
 ] as const;
+
+/** คีย์ localStorage ที่เซิร์ฟเวอร์จำลองใช้เก็บข้อมูลในเบราว์เซอร์ */
+export const DEMO_STORAGE_KEY = "procurement-web-demo";
