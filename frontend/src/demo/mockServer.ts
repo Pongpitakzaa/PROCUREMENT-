@@ -15,7 +15,7 @@ import type {
   VendorDetail, VendorListItem, Violation,
 } from "../types";
 import { isValidThaiTaxId, validateForm } from "../validation";
-import { DEMO_PASSWORD } from "./accounts";
+import { DEMO_PASSWORD, DEMO_STORAGE_KEY } from "./accounts";
 import raw from "./snapshot.json";
 
 interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[] }
@@ -36,19 +36,51 @@ interface Snapshot {
 interface WorkflowStep { order: number; code: string; name_th: string; legal_ref: string | null; document: string | null; min_announce_working_days?: number }
 
 // สำเนาที่แก้ไขได้ (ไม่แตะ object ที่ import มา)
-const db: Snapshot = structuredClone(raw as unknown as Snapshot);
+const seed = raw as unknown as Snapshot;
+
+// ---------------------------------------------------------------------------
+// เก็บข้อมูลไว้ในเบราว์เซอร์ของผู้ใช้ (localStorage) — โหลดหน้าใหม่แล้วข้อมูลที่บันทึกยังอยู่
+// ข้อมูลอยู่เฉพาะเบราว์เซอร์นี้ ไม่ถูกส่งไปที่ใด · version ผูกกับข้อมูลตั้งต้น: ถ้า snapshot เปลี่ยน ข้อมูลเก่าถูกทิ้ง
+// ---------------------------------------------------------------------------
+const STORAGE_KEY = DEMO_STORAGE_KEY;
+const SEED_VERSION = `${seed.projects.length}.${seed.vendors.length}.${seed.admin.audit.items[0]?.audit_id ?? 0}`;
+interface Saved { version: string; db: Snapshot; submittedBy: [string, string][]; next: [number, number, number] }
+
+function loadSaved(): Saved | null {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Saved | null;
+    return s && s.version === SEED_VERSION ? s : null;
+  } catch {
+    return null;   // private mode / ข้อมูลเสีย → เริ่มจากข้อมูลตั้งต้น
+  }
+}
+const saved = loadSaved();
+const db: Snapshot = saved?.db ?? structuredClone(seed);
 
 /** เก็บ FieldSpec ต่อรหัสขั้นตอน (backend ใช้ form_for(step_code) ชุดเดียวกันทุกโครงการ) */
 const fieldsByStep = new Map<string, FieldSpec[]>();
 for (const [key, f] of Object.entries(db.step_forms)) fieldsByStep.set(key.split("/")[1]!, f.fields);
 
 /** ผู้เสนอแต่ละขั้น (ตรวจ SoD) — ข้อมูลตั้งต้นถือว่าเสนอโดย officer */
-const submittedBy = new Map<string, string>();
-for (const [key, f] of Object.entries(db.step_forms)) if (f.step.status === "SUBMITTED") submittedBy.set(key, "officer");
+const submittedBy = new Map<string, string>(saved?.submittedBy);
+if (!saved) for (const [key, f] of Object.entries(db.step_forms)) if (f.step.status === "SUBMITTED") submittedBy.set(key, "officer");
 
-let nextProjectId = Math.max(...db.projects.map((p) => p.project_id)) + 1;
-let nextVendorId = Math.max(...db.vendors.map((v) => v.vendor_id)) + 1;
-let nextAuditId = Math.max(0, ...db.admin.audit.items.map((a) => a.audit_id)) + 1;
+let [nextProjectId, nextVendorId, nextAuditId] = saved?.next ?? [
+  Math.max(...db.projects.map((p) => p.project_id)) + 1,
+  Math.max(...db.vendors.map((v) => v.vendor_id)) + 1,
+  Math.max(0, ...db.admin.audit.items.map((a) => a.audit_id)) + 1,
+];
+
+/** บันทึกลงเบราว์เซอร์หลังทุกการเปลี่ยนแปลงที่สำเร็จ (พื้นที่เต็ม/ถูกบล็อก → ใช้งานต่อได้ แต่โหลดใหม่แล้วข้อมูลหาย) */
+function persist(): void {
+  try {
+    const data: Saved = { version: SEED_VERSION, db, submittedBy: [...submittedBy], next: [nextProjectId, nextVendorId, nextAuditId] };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
+
 
 const SPECIFIC_MAX = 500_000;
 const PUBLIC_HEARING_OVER = 5_000_000;
@@ -477,6 +509,7 @@ async function handle(path: string, init: RequestInit): Promise<Response> {
     if (!m || (rm !== "*" && rm !== method)) continue;
     try {
       const out = fn({ m, q: url.searchParams, body, headers, me: () => userOf(headers) });
+      if (method !== "GET") persist();
       return json(method === "POST" && /\/(projects|vendors|sanctions)$/.test(url.pathname) ? 201 : 200, structuredClone(out));
     } catch (e) {
       if (e instanceof HttpError) return json(e.status, { message: e.message, violations: e.violations });

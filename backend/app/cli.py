@@ -6,6 +6,8 @@
     python -m app.cli reset-password itadmin          # ลืมรหัสผ่าน/บัญชีถูกล็อก
     python -m app.cli list-departments
     python -m app.cli backup --keep-days 30          # สำรองอัตโนมัติ (ตั้ง cron) + ลบไฟล์อัตโนมัติที่เก่ากว่า 30 วัน
+    python -m app.cli init-db                         # รันทุกครั้งที่เริ่มคอนเทนเนอร์ (api-entrypoint): สร้าง schema
+                                                      # เมื่อฐานข้อมูลว่าง + ปรับโครงสร้างที่ขาด + ผู้ดูแลคนแรกจาก PROC_BOOTSTRAP_*
 
 ใน Docker: docker compose exec api python -m app.cli <คำสั่ง>
 รหัสผ่านสุ่มใหม่ทุกครั้งและแสดงบนจอครั้งเดียว — ไม่รับรหัสผ่านทาง argument (จะค้างใน shell history)
@@ -17,14 +19,15 @@ import argparse
 import re
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 
 from app.core.crypto import blind_index, encrypt_field
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, engine
 from app.core.config import get_settings
-from app.core.security import generate_temp_password, hash_password
+from app.core.security import generate_temp_password, hash_password, password_problems
 from app.models import Department, Personnel, Role, User, UserRole
 from app.rules.validators import clean_text, is_valid_thai_tax_id
 from app.services import backup_service
@@ -136,6 +139,89 @@ def backup(args: argparse.Namespace) -> None:
         print(f"ลบไฟล์สำรองอัตโนมัติที่เก่าเกิน {args.keep_days} วัน: {name}")
 
 
+# ---------------------------------------------------------------------------
+# init-db: ให้ระบบเริ่มเองได้บนแพลตฟอร์มที่ไม่มีขั้นติดตั้ง (เช่น Render) — ปลอดภัยที่จะรันซ้ำทุกครั้ง
+# ---------------------------------------------------------------------------
+# การปรับโครงสร้างที่ต้องใช้กับฐานข้อมูลที่สร้างจาก schema รุ่นก่อน (ทุกคำสั่งต้องรันซ้ำได้)
+MIGRATIONS = [
+    "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS content BYTEA",
+]
+_INIT_LOCK = 7_300_001   # pg_advisory_lock: กันหลาย instance สร้าง schema พร้อมกัน
+_TITLES = ("นางสาว", "นาง", "นาย")
+
+
+def _schema_dir() -> Path:
+    here = Path(__file__).resolve()
+    for candidate in (here.parent.parent / "database", here.parent.parent.parent / "database"):   # image / repo
+        if (candidate / "schema.sql").is_file():
+            return candidate
+    raise FileNotFoundError("ไม่พบ database/schema.sql")
+
+
+def _bootstrap_admin(db) -> str:
+    s = get_settings()
+    if not s.bootstrap_admin_username:
+        return "ไม่ได้ตั้ง PROC_BOOTSTRAP_ADMIN_USERNAME — ข้าม"
+    if db.scalar(select(func.count()).select_from(User)):
+        return "มีผู้ใช้แล้ว — ข้าม (สร้างผู้ดูแลอัตโนมัติเฉพาะระบบใหม่)"
+    username = s.bootstrap_admin_username.strip()
+    password = s.bootstrap_admin_password.get_secret_value() if s.bootstrap_admin_password else ""
+    citizen_id = (s.bootstrap_admin_citizen_id or "").replace("-", "").strip()
+    problems = []
+    if not re.fullmatch(r"[a-z0-9_.-]{3,60}", username):
+        problems.append("ชื่อผู้ใช้ 3–60 ตัว ใช้ a-z 0-9 _ . - เท่านั้น")
+    problems += [f"รหัสผ่าน{p}" for p in password_problems(password, username)]
+    if not is_valid_thai_tax_id(citizen_id) or citizen_id.startswith("0"):
+        problems.append("เลขประจำตัวประชาชนไม่ถูกต้อง")
+    if problems:
+        return "สร้างผู้ดูแลไม่ได้: " + " · ".join(problems) + " — แก้ค่า PROC_BOOTSTRAP_* แล้ว deploy ใหม่"
+
+    name = clean_text(s.bootstrap_admin_name or "ผู้ดูแล ระบบ")
+    title = next((t for t in _TITLES if name.startswith(t)), "")
+    first, _, last = name[len(title):].strip().partition(" ")
+    dept = db.scalar(select(Department).order_by(Department.department_id).limit(1))
+    if dept is None:
+        dept = Department(code="MAIN", name_th=clean_text(s.bootstrap_department_name or "หน่วยงานหลัก"))
+        db.add(dept)
+        db.flush()
+    person = Personnel(department_id=dept.department_id, title_th=title or "-", first_name_th=first or name,
+                       last_name_th=last.strip() or "-", position_th="ผู้ดูแลระบบ", employment_type="OTHER",
+                       citizen_id_enc=encrypt_field(citizen_id, "personnel.citizen_id"),
+                       citizen_id_hmac=blind_index(citizen_id))
+    db.add(person)
+    db.flush()
+    user = User(personnel_id=person.personnel_id, username=username, password_hash=hash_password(password),
+                password_changed_at=datetime.now(UTC))
+    db.add(user)
+    db.flush()
+    db.add(UserRole(user_id=user.user_id, role_id=db.scalar(select(Role.role_id).where(Role.code == "ADMIN"))))
+    write_audit(db, action="CREATE", user_id=None, entity_table="users", entity_id=user.user_id,
+                new={"username": username, "roles": ["ADMIN"], "via": "bootstrap"})
+    return f"สร้างผู้ดูแลระบบ {username} แล้ว — เข้าสู่ระบบแล้วเปลี่ยนรหัสผ่าน และลบค่า PROC_BOOTSTRAP_ADMIN_PASSWORD ออกจากการตั้งค่า"
+
+
+def init_db(_: argparse.Namespace) -> None:
+    raw = engine.raw_connection()   # psycopg ตรง: รัน schema.sql ทั้งไฟล์ (มี function $$...$$) ได้ในครั้งเดียว
+    try:
+        cur = raw.cursor()
+        cur.execute("SELECT pg_advisory_lock(%s)", (_INIT_LOCK,))
+        cur.execute("SELECT to_regclass('public.projects') IS NOT NULL")
+        if not cur.fetchone()[0]:
+            d = _schema_dir()
+            cur.execute((d / "schema.sql").read_text(encoding="utf-8"))
+            cur.execute((d / "seed.sql").read_text(encoding="utf-8"))
+            print("init-db: สร้าง schema และข้อมูลอ้างอิงแล้ว")
+        for sql in MIGRATIONS:
+            cur.execute(sql)
+        raw.commit()
+        cur.execute("SELECT pg_advisory_unlock(%s)", (_INIT_LOCK,))
+        raw.commit()
+    finally:
+        raw.close()
+    with SessionLocal() as db, db.begin():
+        print("init-db:", _bootstrap_admin(db))
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="python -m app.cli", description="คำสั่งดูแลระบบจัดซื้อจัดจ้าง")
     sub = p.add_subparsers(required=True)
@@ -160,6 +246,8 @@ def main(argv: list[str] | None = None) -> None:
     b = sub.add_parser("backup", help="สำรองข้อมูล (ใช้กับ cron)")
     b.add_argument("--keep-days", type=int, default=0, help="ลบไฟล์สำรองอัตโนมัติที่เก่ากว่า N วัน (0 = ไม่ลบ)")
     b.set_defaults(fn=backup)
+
+    sub.add_parser("init-db", help="สร้าง/ปรับฐานข้อมูลอัตโนมัติ + ผู้ดูแลคนแรก (รันซ้ำได้)").set_defaults(fn=init_db)
 
     r = sub.add_parser("reset-password", help="ตั้งรหัสผ่านใหม่ + ปลดล็อกบัญชี")
     r.add_argument("username")

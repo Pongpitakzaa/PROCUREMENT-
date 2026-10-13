@@ -62,6 +62,9 @@ jobs:
       - name: Smoke test (install.sh → check.sh → CLI → HTTPS login → backup)
         run: sudo --preserve-env=GITHUB_ACTIONS deploy/ci-smoke.sh
 
+      - name: Smoke test, Render mode (render.yaml → empty DB, API serves web, restart)
+        run: deploy/ci-render-smoke.sh
+
       - name: Container logs on failure
         if: failure()
         working-directory: deploy

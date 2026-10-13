@@ -4,7 +4,6 @@ import json
 import re
 import uuid
 import zipfile
-from pathlib import Path
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
@@ -21,7 +20,7 @@ from app.models import AuditLog, BackupJob, DocumentTemplate, DocumentType, User
 from app.schemas import RestoreIn
 from app.services import backup_service
 from app.services.audit_service import write_audit
-from app.services.export_service import sha256_file
+from app.services.export_service import template_available
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 DB = Annotated[Session, Depends(get_db)]
@@ -160,7 +159,7 @@ async def upload_template(
 
     tpl = DocumentTemplate(document_type_id=dtype.document_type_id, version_label=version_label,
                            source_url=source_url, cgd_reference=cgd_reference, file_format=fmt,
-                           storage_path=str(path), sha256=digest, variable_schema=variable_schema,
+                           storage_path=str(path), content=content, sha256=digest, variable_schema=variable_schema,
                            effective_from=effective_from, is_active=False, uploaded_by=user.user_id)
     db.add(tpl)
     db.flush()
@@ -236,7 +235,6 @@ def list_templates(db: DB, _: TemplateViewer) -> list[dict]:
                                                         DocumentTemplate.template_id.desc())).all()
     out = []
     for t in rows:
-        path = Path(t.storage_path)
         out.append({
             "template_id": t.template_id, "document_type_code": t.document_type.code,
             "document_type_name_th": t.document_type.name_th, "version_label": t.version_label,
@@ -246,7 +244,7 @@ def list_templates(db: DB, _: TemplateViewer) -> list[dict]:
             "variables": t.variable_schema.get("variables", []),
             "uploaded_by": users.get(t.uploaded_by), "verified_by": users.get(t.verified_by),
             "uploaded_by_id": t.uploaded_by,
-            "file_ok": path.is_file() and sha256_file(path) == t.sha256,
+            "file_ok": template_available(t),
         })
     return out
 

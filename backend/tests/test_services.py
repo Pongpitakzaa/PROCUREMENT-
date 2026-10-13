@@ -123,3 +123,43 @@ def test_backup_name_whitelist():
     for bad in ("../procurement-20261013T042151.dump.enc", "procurement-20261013T042151-x.dump.enc",
                 "procurement-20261013T042151.dump.enc.json", "/etc/passwd"):
         assert not BACKUP_NAME.fullmatch(bad)
+
+
+def test_settings_render_style(monkeypatch):
+    """Render: URL แบบ postgresql:// + กุญแจเดี่ยว PROC_DATA_KEY + RENDER_EXTERNAL_URL."""
+    import pytest
+    from app.core.config import Settings
+    monkeypatch.delenv("PROC_DATA_KEYS", raising=False)
+    monkeypatch.setenv("PROC_DATA_KEY", "B0jrphAPOY7pg92AN0c9MN4yecczLMdwnx4OkA1KFUk=")
+    monkeypatch.setenv("PROC_DATABASE_URL", "postgresql://u:p@db:5432/procurement")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://procurement-x.onrender.com/")
+    s = Settings(_env_file=None)
+    assert str(s.database_url).startswith("postgresql+psycopg://")
+    assert list(s.data_keys) == ["k1"]
+    assert s.public_base_url == "https://procurement-x.onrender.com"
+    monkeypatch.delenv("PROC_DATA_KEY")
+    with pytest.raises(ValueError):
+        Settings(_env_file=None)
+
+
+def test_template_file_restored_from_db(tmp_path):
+    """ระบบไฟล์ถูกล้าง (เช่น Render เริ่มใหม่) → สร้างไฟล์แบบฟอร์มคืนจากสำเนาในฐานข้อมูล; สำเนาไม่ตรง → ปฏิเสธ."""
+    import hashlib
+    from types import SimpleNamespace
+    import pytest
+    from app.services.export_service import ExportError, template_available, template_file
+    data = b"PK\x03\x04 form bytes"
+    tpl = SimpleNamespace(storage_path=str(tmp_path / "t" / "a.docx"), content=data,
+                          sha256=hashlib.sha256(data).hexdigest())
+    assert template_available(tpl)
+    path = template_file(tpl)
+    assert path.read_bytes() == data
+    path.write_bytes(b"tampered")                       # ไฟล์บน disk ถูกแก้ → เขียนทับจากสำเนาที่ถูกต้อง
+    assert template_file(tpl).read_bytes() == data
+    bad = SimpleNamespace(storage_path=str(tmp_path / "b.docx"), content=b"other", sha256=tpl.sha256)
+    assert not template_available(bad)
+    with pytest.raises(ExportError):
+        template_file(bad)
+    none = SimpleNamespace(storage_path=str(tmp_path / "c.docx"), content=None, sha256=tpl.sha256)
+    with pytest.raises(ExportError):
+        template_file(none)

@@ -1,5 +1,6 @@
 /** ส่วนแสดงผลของเวอร์ชันสาธิตบนเว็บ (แสดงเฉพาะ build โหมด demo) */
-import { DEMO_PASSWORD, DEMO_USERS } from "../demo/accounts";
+import { useState } from "react";
+import { DEMO_PASSWORD, DEMO_STORAGE_KEY, DEMO_USERS } from "../demo/accounts";
 
 export function DemoAccounts({ onPick }: { onPick: (username: string) => void }) {
   return (
@@ -19,9 +20,26 @@ export function DemoAccounts({ onPick }: { onPick: (username: string) => void })
 }
 
 export function DemoBanner() {
+  const [confirming, setConfirming] = useState(false);
+  const reset = () => {
+    try {
+      localStorage.removeItem(DEMO_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    location.reload();
+  };
   return (
     <p className="demo-banner">
-      เวอร์ชันสาธิต · ข้อมูลตัวอย่างทั้งหมด ไม่ใช่ข้อมูลจริงของหน่วยงาน · บันทึกได้แต่จะกลับเป็นค่าเริ่มต้นเมื่อโหลดหน้าใหม่
+      ระบบทดลองบนเว็บ · ข้อมูลตัวอย่าง ไม่ใช่ข้อมูลจริงของหน่วยงาน · ข้อมูลที่บันทึกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น{" "}
+      {confirming ? (
+        <>
+          <button type="button" className="demo-reset" onClick={reset}>ยืนยันล้างข้อมูล</button>
+          <button type="button" className="demo-reset ghost" onClick={() => setConfirming(false)}>ยกเลิก</button>
+        </>
+      ) : (
+        <button type="button" className="demo-reset ghost" onClick={() => setConfirming(true)}>เริ่มใหม่จากข้อมูลตัวอย่าง</button>
+      )}
     </p>
   );
 }

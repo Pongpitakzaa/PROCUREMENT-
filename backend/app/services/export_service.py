@@ -138,11 +138,37 @@ def _active_template(db: Session, document_type_code: str) -> DocumentTemplate:
         .where(DocumentType.code == document_type_code, DocumentTemplate.is_active.is_(True)))
     if tpl is None:
         raise ExportError(f"ยังไม่มีแบบฟอร์มกรมบัญชีกลางที่ผ่านการตรวจรับรองสำหรับเอกสาร {document_type_code}")
-    path = Path(tpl.storage_path)
-    if not path.is_file() or sha256_file(path) != tpl.sha256:
-        # ไฟล์ถูกแก้ไข/เสียหาย → ไม่ออกเอกสาร (integrity check)
-        raise ExportError("ไฟล์แบบฟอร์มไม่ตรงกับฉบับที่ตรวจรับรองไว้ กรุณาแจ้งผู้ดูแลระบบ")
+    template_file(tpl)
     return tpl
+
+
+def template_available(tpl: DocumentTemplate) -> bool:
+    """ไฟล์บน disk ตรงกับฉบับที่รับรอง หรือสร้างคืนได้จากสำเนาในฐานข้อมูล."""
+    path = Path(tpl.storage_path)
+    if path.is_file() and sha256_file(path) == tpl.sha256:
+        return True
+    return tpl.content is not None and hashlib.sha256(tpl.content).hexdigest() == tpl.sha256
+
+
+def template_file(tpl: DocumentTemplate) -> Path:
+    """คืน path ของไฟล์แบบฟอร์มที่ตรงกับฉบับที่ตรวจรับรอง (SHA-256)
+
+    ไฟล์หาย (เช่น storage ถูกล้างเมื่อ restart บนแพลตฟอร์มที่ระบบไฟล์ไม่ถาวร) → เขียนคืนจากสำเนาในฐานข้อมูล
+    ไฟล์ถูกแก้/สำเนาไม่ตรง → ไม่ออกเอกสาร (integrity check)
+    """
+    path = Path(tpl.storage_path)
+    if path.is_file() and sha256_file(path) == tpl.sha256:
+        return path
+    if tpl.content is None or hashlib.sha256(tpl.content).hexdigest() != tpl.sha256:
+        raise ExportError("ไฟล์แบบฟอร์มไม่ตรงกับฉบับที่ตรวจรับรองไว้ กรุณาแจ้งผู้ดูแลระบบ")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".restore")
+        tmp.write_bytes(tpl.content)
+        tmp.replace(path)   # เขียนแบบ atomic — worker อื่นไม่เห็นไฟล์ครึ่ง ๆ
+    except OSError as exc:
+        raise ExportError("สร้างไฟล์แบบฟอร์มคืนจากฐานข้อมูลไม่ได้ กรุณาแจ้งผู้ดูแลระบบ") from exc
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -225,13 +251,13 @@ def export_step_document(db: Session, project: Project, step: WorkflowStep, fmt:
     if tpl.file_format == "DOCX":
         if fmt == "XLSX":
             raise ExportError("แบบฟอร์มนี้เป็นเอกสาร Word ส่งออกเป็น Excel ไม่ได้")
-        content = render_docx(Path(tpl.storage_path), context)
+        content = render_docx(template_file(tpl), context)
         if fmt == "PDF":
             content = docx_to_pdf(content)
     else:
         if fmt != "XLSX":
             raise ExportError("แบบฟอร์มนี้เป็นตาราง Excel ส่งออกได้เฉพาะ .xlsx")
-        content = render_xlsx(Path(tpl.storage_path), tpl.variable_schema, context)
+        content = render_xlsx(template_file(tpl), tpl.variable_schema, context)
 
     out_dir = get_settings().output_dir / str(project.project_id)
     out_dir.mkdir(parents=True, exist_ok=True)
