@@ -11,3 +11,4 @@ deploy/.env
 deploy/data/
 deploy/certs/*.pem
 deploy/certs/*.key
+deploy/extra-ca/*.crt

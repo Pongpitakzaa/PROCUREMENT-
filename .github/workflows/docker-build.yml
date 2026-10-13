@@ -31,7 +31,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: deploy/api.Dockerfile
+          file: Dockerfile
           tags: procurement-api:latest
           load: true
           push: false

@@ -33,7 +33,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: deploy/api.Dockerfile
+      dockerfile: Dockerfile
       args:
         UBUNTU_MIRROR: ${UBUNTU_MIRROR:-}
     image: procurement-api:latest

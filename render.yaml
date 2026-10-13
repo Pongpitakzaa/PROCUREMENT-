@@ -19,7 +19,7 @@ services:
     runtime: docker
     plan: free                     # ใช้งานจริง: starter ขึ้นไป (แผนฟรีหลับเมื่อไม่มีผู้ใช้ 15 นาที)
     region: singapore
-    dockerfilePath: ./deploy/api.Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
     autoDeploy: true               # merge เข้า main แล้ว deploy ใหม่อัตโนมัติ
