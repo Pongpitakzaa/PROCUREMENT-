@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api";
-import type { AuditRow, BackupManifest, LineChannel, TemplateRow } from "../types";
+import type { AuditRow, BackupManifest, LineChannel, LineStatus, TemplateRow } from "../types";
 import { UsersTab } from "./admin/UsersTab";
 
 interface Props {
@@ -492,80 +492,149 @@ const LINE_ID = /^[CU][0-9a-f]{32}$/;
 
 function LineTab() {
   const [rows, setRows] = useState<LineChannel[] | null>(null);
+  const [status, setStatus] = useState<LineStatus | null>(null);
   const [name, setName] = useState("");
   const [lineTo, setLineTo] = useState("");
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<number | "add" | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const load = useCallback(() => { api<LineChannel[]>("/api/admin/line-channels").then(setRows).catch((e) => setMsg({ ok: false, text: errText(e) })); }, []);
+  const load = useCallback(() => {
+    api<LineChannel[]>("/api/admin/line-channels").then(setRows).catch((e) => setMsg({ ok: false, text: errText(e) }));
+    api<LineStatus>("/api/admin/line-status").then(setStatus).catch(() => setStatus(null));
+  }, []);
   useEffect(load, [load]);
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !LINE_ID.test(lineTo)) { setMsg({ ok: false, text: "กรอกชื่อกลุ่ม และ ID ให้ถูกรูปแบบ" }); return; }
-    setBusy(true);
+  async function run<T>(key: number | "add", fn: () => Promise<T>, okText: (r: T) => string) {
+    setBusy(key);
     try {
-      await api("/api/admin/line-channels", { method: "POST", body: JSON.stringify({ name_th: name.trim(), line_to: lineTo }) });
-      setMsg({ ok: true, text: `เพิ่มกลุ่ม “${name.trim()}” แล้ว` });
-      setName(""); setLineTo("");
+      const r = await fn();
+      setMsg({ ok: true, text: okText(r) });
       load();
     } catch (err) {
       setMsg({ ok: false, text: errText(err) });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  async function toggle(ch: LineChannel) {
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !LINE_ID.test(lineTo)) { setMsg({ ok: false, text: "กรอกชื่อกลุ่ม และ ID ให้ถูกรูปแบบ" }); return; }
+    await run("add", () => api("/api/admin/line-channels", { method: "POST", body: JSON.stringify({ name_th: name.trim(), line_to: lineTo }) }),
+      () => `เพิ่มกลุ่ม “${name.trim()}” แล้ว`);
+    setName(""); setLineTo("");
+  }
+  const toggle = (ch: LineChannel) =>
+    run(ch.channel_id, () => api(`/api/admin/line-channels/${ch.channel_id}`, { method: "PATCH", body: JSON.stringify({ is_active: !ch.is_active }) }),
+      () => (ch.is_active ? `ปิดการแจ้งเตือน “${ch.name_th}” แล้ว` : `เปิดการแจ้งเตือน “${ch.name_th}” แล้ว — ระบบจะส่งเมื่อมีการส่งพิจารณา/อนุมัติ`));
+  const test = (ch: LineChannel) =>
+    run(ch.channel_id, () => api(`/api/admin/line-channels/${ch.channel_id}/test`, { method: "POST" }),
+      () => `ส่งข้อความทดสอบไปยัง “${ch.name_th}” แล้ว — เปิด LINE ดูว่าได้รับหรือไม่`);
+  const rename = (id: number, newName: string) =>
+    run(id, () => api(`/api/admin/line-channels/${id}`, { method: "PATCH", body: JSON.stringify({ name_th: newName.trim() }) }),
+      () => "บันทึกชื่อกลุ่มแล้ว").then(() => setEditing(null));
+
+  async function copyWebhook() {
+    if (!status) return;
     try {
-      await api(`/api/admin/line-channels/${ch.channel_id}`, { method: "PATCH", body: JSON.stringify({ is_active: !ch.is_active }) });
-      load();
-    } catch (e) {
-      setMsg({ ok: false, text: errText(e) });
+      await navigator.clipboard.writeText(status.webhook_url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setMsg({ ok: false, text: "คัดลอกอัตโนมัติไม่ได้ — เลือกข้อความแล้วคัดลอกเอง" });
     }
   }
 
+  const pending = rows?.filter((r) => r.source === "WEBHOOK" && !r.is_active) ?? [];
+  const ready = !!status?.token_configured && !!status?.secret_configured;
   return (
     <div className="admin-grid">
       <div className="card panel-lg">
         <h3>กลุ่ม LINE ที่รับการแจ้งเตือน</h3>
-        <p className="muted small">ส่งผ่าน LINE Messaging API · ID ของกลุ่มเก็บแบบเข้ารหัส แสดงเฉพาะ 4 ตัวท้าย</p>
+        <p className="muted small">
+          ระบบส่งการ์ดสถานะเข้ากลุ่มที่เปิดใช้โดยอัตโนมัติเมื่อมีการส่งพิจารณา / อนุมัติ / ส่งกลับแก้ไข · ID ของกลุ่มเก็บแบบเข้ารหัส แสดงเฉพาะ 4 ตัวท้าย
+        </p>
         {msg && <p role="status" className={msg.ok ? "banner-ok" : "banner-error"}>{msg.text}</p>}
-        {rows?.length === 0 && <div className="empty">ยังไม่มีกลุ่ม LINE</div>}
+        {pending.length > 0 && (
+          <p className="banner-ok">พบกลุ่มใหม่ {pending.length} กลุ่มจากการเชิญบอท — ตั้งชื่อแล้วกด “เปิดใช้” เพื่อเริ่มแจ้งเตือน</p>
+        )}
+        {rows?.length === 0 && <div className="empty">ยังไม่มีกลุ่ม LINE — เชิญบอทเข้ากลุ่ม (ขั้นตอนด้านขวา) แล้วกลุ่มจะปรากฏที่นี่</div>}
         <ul className="channel-list">
           {rows?.map((ch) => (
-            <li key={ch.channel_id}>
+            <li key={ch.channel_id} className={ch.source === "WEBHOOK" && !ch.is_active ? "pending" : ""}>
               <div>
-                <strong>{ch.name_th}</strong>
-                <span className="muted small">{ch.line_to_masked} · ส่งล่าสุด {ch.last_sent_at ? thDateTime(ch.last_sent_at) : "—"}</span>
+                {editing?.id === ch.channel_id ? (
+                  <form className="inline-edit" onSubmit={(e) => { e.preventDefault(); if (editing.name.trim()) rename(ch.channel_id, editing.name); }}>
+                    <input aria-label="ชื่อกลุ่ม" maxLength={100} value={editing.name} autoFocus
+                           onChange={(e) => setEditing({ id: ch.channel_id, name: e.target.value })} />
+                    <button type="submit" disabled={busy === ch.channel_id}>บันทึก</button>
+                    <button type="button" className="ghost" onClick={() => setEditing(null)}>ยกเลิก</button>
+                  </form>
+                ) : (
+                  <strong>
+                    {ch.name_th}{" "}
+                    <button type="button" className="link small" onClick={() => setEditing({ id: ch.channel_id, name: ch.name_th })}>แก้ชื่อ</button>
+                  </strong>
+                )}
+                <span className="muted small">
+                  {ch.line_to_masked} · {ch.source === "WEBHOOK" ? "พบจากการเชิญบอท" : "เพิ่มด้วยมือ"} · ส่งล่าสุด{" "}
+                  {ch.last_sent_at ? `${thDateTime(ch.last_sent_at)} (${ch.last_status === "SENT" ? "สำเร็จ" : "ล้มเหลว"})` : "—"}
+                </span>
               </div>
-              <label className="switch">
-                <input type="checkbox" checked={ch.is_active} onChange={() => toggle(ch)} />
-                <span>{ch.is_active ? "เปิดใช้" : "ปิด"}</span>
-              </label>
+              <div className="channel-actions">
+                <button type="button" className="ghost" disabled={busy === ch.channel_id || !status?.token_configured}
+                        title={status?.token_configured ? "ส่งข้อความทดสอบเข้ากลุ่มนี้" : "ต้องตั้ง Channel access token ก่อน"}
+                        onClick={() => test(ch)}>ทดสอบ</button>
+                <label className="switch">
+                  <input type="checkbox" checked={ch.is_active} disabled={busy === ch.channel_id} onChange={() => toggle(ch)} />
+                  <span>{ch.is_active ? "เปิดใช้" : "ปิด"}</span>
+                </label>
+              </div>
             </li>
           ))}
         </ul>
       </div>
-      <aside className="card panel-lg">
-        <form onSubmit={add} noValidate>
-          <h3>เพิ่มกลุ่ม LINE</h3>
-          <ol className="tips">
-            <li>สร้าง LINE Official Account และเปิด Messaging API</li>
-            <li>เชิญบัญชีเข้ากลุ่มงานพัสดุ</li>
-            <li>นำ groupId จาก webhook event “join” มากรอกด้านล่าง</li>
-          </ol>
-          <div className="field">
-            <label htmlFor="l-name">ชื่อกลุ่ม</label>
-            <input id="l-name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="กลุ่มงานพัสดุ" />
+      <aside className="card panel-lg line-setup">
+        <h3>การตั้งค่า LINE</h3>
+        {status ? (
+          <ul className="setup-list">
+            <li className={status.token_configured ? "good" : "bad"}>Channel access token {status.token_configured ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง (PROC_LINE_CHANNEL_ACCESS_TOKEN)"}</li>
+            <li className={status.secret_configured ? "good" : "bad"}>Channel secret {status.secret_configured ? "ตั้งแล้ว" : "ยังไม่ได้ตั้ง (PROC_LINE_CHANNEL_SECRET)"}</li>
+            <li className={status.auto_notify ? "good" : "bad"}>แจ้งเตือนอัตโนมัติ {status.auto_notify ? "เปิด" : "ปิด (PROC_LINE_AUTO_NOTIFY)"}</li>
+          </ul>
+        ) : <p className="muted small">กำลังโหลดสถานะ…</p>}
+        <div className="field">
+          <label htmlFor="l-webhook">Webhook URL (วางใน LINE Developers Console)</label>
+          <div className="copy-row">
+            <input id="l-webhook" readOnly value={status?.webhook_url ?? ""} onFocus={(e) => e.target.select()} />
+            <button type="button" className="ghost" onClick={copyWebhook} disabled={!status}>{copied ? "คัดลอกแล้ว ✓" : "คัดลอก"}</button>
           </div>
-          <div className={`field ${lineTo && !LINE_ID.test(lineTo) ? "has-error" : ""}`}>
-            <label htmlFor="l-to">groupId / userId</label>
-            <input id="l-to" value={lineTo} onChange={(e) => setLineTo(e.target.value.trim())} placeholder="C + ตัวอักษร 32 ตัว" />
-            {lineTo && !LINE_ID.test(lineTo) && <small className="error">ต้องขึ้นต้นด้วย C หรือ U ตามด้วย 0-9/a-f 32 ตัว</small>}
-          </div>
-          <button type="submit" className="full" disabled={busy}>{busy ? "กำลังบันทึก…" : "เพิ่มกลุ่ม"}</button>
-        </form>
+        </div>
+        <ol className="tips">
+          <li>สร้าง LINE Official Account และเปิด Messaging API ที่ developers.line.biz</li>
+          <li>คัดลอก <b>Channel access token</b> และ <b>Channel secret</b> ไปตั้งค่าในเซิร์ฟเวอร์ (Render: Environment)</li>
+          <li>ใน Messaging API settings ใส่ Webhook URL ด้านบน แล้วเปิด <b>Use webhook</b></li>
+          <li>เชิญบอทเข้ากลุ่มงานพัสดุ — กลุ่มจะปรากฏในรายการซ้ายอัตโนมัติ (หรือพิมพ์ “ลงทะเบียน” ในกลุ่ม)</li>
+          <li>ตั้งชื่อ กด <b>ทดสอบ</b> แล้ว <b>เปิดใช้</b></li>
+        </ol>
+        {!ready && <p className="muted small">ยังตั้งค่าไม่ครบ — เพิ่มกลุ่มด้วยมือได้ แต่จะส่งข้อความไม่ได้จนกว่าจะตั้ง token</p>}
+        <details className="manual-add">
+          <summary>เพิ่มกลุ่มด้วยมือ (ถ้าทราบ groupId อยู่แล้ว)</summary>
+          <form onSubmit={add} noValidate>
+            <div className="field">
+              <label htmlFor="l-name">ชื่อกลุ่ม</label>
+              <input id="l-name" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="กลุ่มงานพัสดุ" />
+            </div>
+            <div className={`field ${lineTo && !LINE_ID.test(lineTo) ? "has-error" : ""}`}>
+              <label htmlFor="l-to">groupId / userId</label>
+              <input id="l-to" value={lineTo} onChange={(e) => setLineTo(e.target.value.trim())} placeholder="C + ตัวอักษร 32 ตัว" />
+              {lineTo && !LINE_ID.test(lineTo) && <small className="error">ต้องขึ้นต้นด้วย C หรือ U ตามด้วย 0-9/a-f 32 ตัว</small>}
+            </div>
+            <button type="submit" className="full" disabled={busy === "add"}>{busy === "add" ? "กำลังบันทึก…" : "เพิ่มกลุ่ม"}</button>
+          </form>
+        </details>
       </aside>
     </div>
   );

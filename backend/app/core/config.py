@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     # LINE Messaging API (LINE Notify ยุติบริการแล้วเมื่อ 31 มี.ค. 2568 จึงไม่ใช้)
     line_channel_access_token: SecretStr | None = None
+    line_channel_secret: SecretStr | None = None   # ใช้ตรวจลายเซ็น webhook (X-Line-Signature)
+    line_auto_notify: bool = True                  # แจ้งเตือนอัตโนมัติเมื่อส่งพิจารณา/อนุมัติ/ส่งกลับ
     line_api_base: str = "https://api.line.me"
     public_base_url: str = "https://procurement.example.go.th"
     download_link_minutes: int = 60

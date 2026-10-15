@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.rules import procurement_rules as pr
 from app.rules.step_forms import form_for
 from app.rules.validators import clean_text
 from app.schemas import ProjectCreate, StepDecisionIn, StepSubmitIn
+from app.services import line_service
 from app.services import workflow_service as wf
 from app.services.audit_service import write_audit
 
@@ -217,7 +218,7 @@ def step_form(project_id: int, step_code: str, db: DB,
 
 @router.post("/projects/{project_id}/steps/{step_code}/submit")
 def submit_step(project_id: int, step_code: str, body: StepSubmitIn, request: Request, db: DB,
-                user: Annotated[User, Depends(require(Perm.STEP_SUBMIT))]) -> dict:
+                background: BackgroundTasks, user: Annotated[User, Depends(require(Perm.STEP_SUBMIT))]) -> dict:
     p = get_project(db, project_id)
     if p.row_version != body.row_version:
         raise HTTPException(409, "ข้อมูลโครงการถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่")
@@ -226,15 +227,20 @@ def submit_step(project_id: int, step_code: str, body: StepSubmitIn, request: Re
     write_audit(db, action="STEP_SUBMIT", user_id=user.user_id, request=request, entity_table="project_steps",
                 entity_id=f"{project_id}:{step_code}", new=ps.step_data)
     db.flush()
+    # แจ้งกลุ่ม LINE หลัง commit (background) — LINE ล่มไม่ทำให้การบันทึกล้มเหลว
+    background.add_task(line_service.notify_step_change, project_id, step_code, ps.status,
+                        user.personnel.full_name_th, user.user_id)
     return {"status": ps.status, "row_version": p.row_version}
 
 
 @router.post("/projects/{project_id}/steps/{step_code}/decision")
 def decide_step(project_id: int, step_code: str, body: StepDecisionIn, request: Request, db: DB,
-                user: Annotated[User, Depends(require(Perm.STEP_APPROVE))]) -> dict:
+                background: BackgroundTasks, user: Annotated[User, Depends(require(Perm.STEP_APPROVE))]) -> dict:
     p = get_project(db, project_id)
     ps = wf.decide_step(db, p, step_code, body.approve, user)
     write_audit(db, action="STEP_APPROVE" if body.approve else "STEP_REJECT", user_id=user.user_id,
                 request=request, entity_table="project_steps", entity_id=f"{project_id}:{step_code}",
                 new={"comment": body.comment})
+    background.add_task(line_service.notify_step_change, project_id, step_code, ps.status,
+                        user.personnel.full_name_th, user.user_id)
     return {"status": ps.status, "project_status": p.status}

@@ -283,8 +283,11 @@ CREATE TABLE notification_channels (
     channel_id     SMALLSERIAL PRIMARY KEY,
     name_th        VARCHAR(100) NOT NULL,
     line_to_enc    BYTEA        NOT NULL,       -- LINE groupId/userId (เข้ารหัส)
+    line_to_hmac   CHAR(64)     UNIQUE,         -- blind index: กันลงทะเบียนกลุ่มเดียวกันซ้ำ (webhook ส่ง join ซ้ำได้)
+    source         VARCHAR(10)  NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL','WEBHOOK')),
     department_id  INT REFERENCES departments(department_id),
-    is_active      BOOLEAN      NOT NULL DEFAULT TRUE
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE notification_logs (

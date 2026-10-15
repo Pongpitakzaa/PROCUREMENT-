@@ -159,7 +159,7 @@ export function App() {
           <ProjectCreatePage methods={methods} onCancel={toList}
                              onCreated={(projectId) => setView({ name: "detail", projectId })} />
         )}
-        {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} canApprove={can("step:approve")} onBack={toList} />}
+        {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} canApprove={can("step:approve")} canShareLine={can("line:send")} onBack={toList} />}
         {view.name === "dashboard" && <DashboardPage />}
         {view.name === "admin" && me && <AdminPage permissions={me.permissions} userId={me.user_id} />}
         {view.name === "vendors" && (

@@ -78,3 +78,10 @@ export async function downloadDashboardReport(fiscalYear: number) {
   const blob = await api<Blob>(`/api/dashboard/report.xlsx?fiscal_year=${fiscalYear}`);
   saveBlob(blob, `procurement-${fiscalYear}.xlsx`);
 }
+
+/** ส่งการ์ดสถานะโครงการเข้ากลุ่ม LINE (แนบลิงก์เอกสารได้เมื่อระบุ documentId) */
+export async function shareToLine(projectId: number, channelId: number, documentId?: number) {
+  await api(`/api/projects/${projectId}/share-line`, {
+    method: "POST", body: JSON.stringify({ channel_id: channelId, document_id: documentId ?? null }),
+  });
+}

@@ -286,8 +286,11 @@ class NotificationChannel(Base):
     channel_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     name_th: Mapped[str] = mapped_column(String(100))
     line_to_enc: Mapped[bytes] = mapped_column(BYTEA)
+    line_to_hmac: Mapped[str | None] = mapped_column(String(64), unique=True)
+    source: Mapped[str] = mapped_column(String(10), default="MANUAL")
     department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.department_id"))
     is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 
 class NotificationLog(Base):

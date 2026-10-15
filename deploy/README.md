@@ -88,7 +88,7 @@ docker compose exec api python -m app.cli create-admin --username itadmin --depa
    — ผู้ดูแลระบบควรเป็นคนละคนกับผู้ปฏิบัติงานจัดซื้อ (ระบบบังคับแยกบทบาท)
 3. **ผู้ดูแลระบบ → แบบฟอร์มกรมบัญชีกลาง**: อัปโหลดแบบฟอร์มจาก gprocurement.go.th ตาม [docs/04-cgd-templates.md](../docs/04-cgd-templates.md)
    แล้วให้หัวหน้าเจ้าหน้าที่ (คนละคนกับผู้อัปโหลด) กดรับรอง
-4. (ถ้าใช้ LINE) ใส่ `PROC_LINE_CHANNEL_ACCESS_TOKEN` ใน `.env` → `docker compose up -d` → เพิ่มกลุ่มที่ **ผู้ดูแลระบบ → กลุ่ม LINE**
+4. (ถ้าใช้ LINE) ใส่ `PROC_LINE_CHANNEL_ACCESS_TOKEN` และ `PROC_LINE_CHANNEL_SECRET` ใน `.env` → `./install.sh --no-build` → ตั้ง webhook และเชิญบอทเข้ากลุ่มตาม [LINE.md](LINE.md)
 
 ### ฟอนต์ TH Sarabun (แนะนำ)
 

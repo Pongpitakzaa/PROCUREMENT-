@@ -145,6 +145,9 @@ def backup(args: argparse.Namespace) -> None:
 # การปรับโครงสร้างที่ต้องใช้กับฐานข้อมูลที่สร้างจาก schema รุ่นก่อน (ทุกคำสั่งต้องรันซ้ำได้)
 MIGRATIONS = [
     "ALTER TABLE document_templates ADD COLUMN IF NOT EXISTS content BYTEA",
+    "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS line_to_hmac CHAR(64) UNIQUE",
+    "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS source VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
+    "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
 ]
 _INIT_LOCK = 7_300_001   # pg_advisory_lock: กันหลาย instance สร้าง schema พร้อมกัน
 _TITLES = ("นางสาว", "นาง", "นาย")
@@ -200,6 +203,14 @@ def _bootstrap_admin(db) -> str:
     return f"สร้างผู้ดูแลระบบ {username} แล้ว — เข้าสู่ระบบแล้วเปลี่ยนรหัสผ่าน และลบค่า PROC_BOOTSTRAP_ADMIN_PASSWORD ออกจากการตั้งค่า"
 
 
+def _backfill_line_hmac(db) -> None:
+    """กลุ่ม LINE ที่ลงทะเบียนก่อนมีคอลัมน์ line_to_hmac → คำนวณ blind index ให้ (ต้องใช้กุญแจถอดรหัส จึงทำใน Python)."""
+    from app.core.crypto import decrypt_field
+    from app.models import NotificationChannel
+    for ch in db.scalars(select(NotificationChannel).where(NotificationChannel.line_to_hmac.is_(None))):
+        ch.line_to_hmac = blind_index(decrypt_field(ch.line_to_enc, "notification_channels.line_to"))
+
+
 def init_db(_: argparse.Namespace) -> None:
     raw = engine.raw_connection()   # psycopg ตรง: รัน schema.sql ทั้งไฟล์ (มี function $$...$$) ได้ในครั้งเดียว
     try:
@@ -219,6 +230,7 @@ def init_db(_: argparse.Namespace) -> None:
     finally:
         raw.close()
     with SessionLocal() as db, db.begin():
+        _backfill_line_hmac(db)
         print("init-db:", _bootstrap_admin(db))
 
 
