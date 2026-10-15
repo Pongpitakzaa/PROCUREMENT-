@@ -6,7 +6,7 @@
 - **Dynamic Workflow** ลำดับขั้นตอนตามวิธีและวงเงินจริง (เช่น e-bidding > 5 ล้านมีขั้นรับฟังความคิดเห็นเพิ่ม)
 - **Dynamic Form** ฟอร์มรายขั้นตอนสร้างจาก spec ฝั่ง backend และตรวจด้วยตรรกะเดียวกันทั้ง 2 ฝั่ง
 - **CGD Standard Forms Only** ออกเอกสารจากไฟล์แบบฟอร์มกรมบัญชีกลางที่ลงทะเบียนและรับรองแล้วเท่านั้น → **Word / PDF / Excel**
-- **LINE Messaging API** แจ้งสถานะ/แชร์ลิงก์เอกสารเข้ากลุ่มงาน (LINE Notify ยุติบริการแล้ว)
+- **LINE Messaging API** แจ้งสถานะเข้ากลุ่มงานอัตโนมัติเมื่อส่งพิจารณา/อนุมัติ + แชร์ลิงก์เอกสาร · webhook ลงทะเบียนกลุ่มเอง (LINE Notify ยุติบริการแล้ว)
 - **Dashboard & Report** สรุปยอดรายเดือน/รายวิธี + ส่งออก Excel
 - **Backup / Restore** จากหน้าเว็บ (เข้ารหัส AES-256-GCM, ตรวจ checksum, สำรองก่อนกู้อัตโนมัติ)
 - **Security** Argon2id, JWT, RBAC + Segregation of Duties, เข้ารหัสข้อมูลส่วนบุคคล, audit log แบบ hash chain
@@ -34,6 +34,7 @@
 | 5 | ใช้งานบน iOS / Android (ติดตั้งเป็นแอป) | [docs/05-mobile-ios-android.md](docs/05-mobile-ios-android.md) |
 | 6 | **ติดตั้งบนเซิร์ฟเวอร์จริง (Docker)** | [deploy/README.md](deploy/README.md) |
 | 7 | **ติดตั้งบน Render (คลิกจาก GitHub)** | [deploy/RENDER.md](deploy/RENDER.md) |
+| 8 | เปิดแจ้งเตือน LINE | [deploy/LINE.md](deploy/LINE.md) |
 
 ## โค้ดหลักที่ควรอ่าน
 

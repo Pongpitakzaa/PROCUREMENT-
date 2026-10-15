@@ -24,7 +24,8 @@
    | `PROC_BOOTSTRAP_ADMIN_NAME` | `นายสมชาย ใจดี` | คำนำหน้า ชื่อ นามสกุล |
    | `PROC_BOOTSTRAP_ADMIN_CITIZEN_ID` | 13 หลัก | เก็บแบบเข้ารหัส AES-256-GCM |
    | `PROC_BOOTSTRAP_DEPARTMENT_NAME` | `กองพัสดุ สำนักงาน…` | หน่วยงานแรกของระบบ |
-   | `PROC_LINE_CHANNEL_ACCESS_TOKEN` | (เว้นว่างได้) | ใส่เมื่อจะใช้แจ้งเตือน LINE |
+   | `PROC_LINE_CHANNEL_ACCESS_TOKEN` | (เว้นว่างได้) | แจ้งเตือน LINE — ใส่ทีหลังได้ ดู [LINE.md](LINE.md) |
+   | `PROC_LINE_CHANNEL_SECRET` | (เว้นว่างได้) | ใช้ตรวจลายเซ็น webhook ของ LINE |
 
 4. กด **Apply** แล้วรอ build (ครั้งแรก 10–15 นาที เพราะติดตั้ง LibreOffice)
 5. เมื่อสถานะเป็น **Live** เปิดลิงก์ของ service `procurement` → เข้าสู่ระบบด้วยบัญชีจากข้อ 3
@@ -33,6 +34,7 @@
    - ใน Render: service `procurement` → **Environment** → ลบ `PROC_BOOTSTRAP_ADMIN_PASSWORD` (ไม่ใช้แล้ว ระบบสร้างผู้ดูแลเฉพาะตอนยังไม่มีผู้ใช้)
    - **ผู้ดูแลระบบ → ผู้ใช้งาน**: สร้างบัญชีเจ้าหน้าที่ หัวหน้าเจ้าหน้าที่ ผู้บริหาร
    - **ผู้ดูแลระบบ → แบบฟอร์มกรมบัญชีกลาง**: อัปโหลดแบบฟอร์ม แล้วให้หัวหน้าเจ้าหน้าที่รับรอง
+   - **แจ้งเตือน LINE**: ตั้งค่าตาม [LINE.md](LINE.md) (10 นาที)
 
 ถ้าสร้างผู้ดูแลไม่สำเร็จ (เช่น รหัสผ่านไม่ผ่านนโยบาย) ดูสาเหตุที่ **Logs** (บรรทัด `init-db:`) แก้ค่าใน **Environment** แล้ว **Manual Deploy**
 

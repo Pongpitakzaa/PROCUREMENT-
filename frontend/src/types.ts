@@ -259,7 +259,23 @@ export interface LineChannel {
   name_th: string;
   line_to_masked: string;
   is_active: boolean;
+  source: "MANUAL" | "WEBHOOK";
+  created_at: string;
   last_sent_at: string | null;
+  last_status: "SENT" | "FAILED" | null;
+}
+
+export interface LineStatus {
+  token_configured: boolean;
+  secret_configured: boolean;
+  auto_notify: boolean;
+  webhook_url: string;
+}
+
+/** กลุ่มที่เปิดใช้ สำหรับปุ่ม "ส่ง LINE" (ไม่มี ID) */
+export interface LineTarget {
+  channel_id: number;
+  name_th: string;
 }
 
 export type RoleCode = "ADMIN" | "PROCUREMENT_OFFICER" | "HEAD_OF_PROCUREMENT" | "EXECUTIVE" | "AUDITOR";

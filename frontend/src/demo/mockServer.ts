@@ -486,6 +486,13 @@ const routes: Route[] = [
   }],
   ["GET", /^\/api\/dashboard\/report\.xlsx$/, () => { throw new HttpError(400, `${DEMO_SERVER_ONLY} (สร้างไฟล์ Excel)`); }],
 
+  ["GET", /^\/api\/line-channels$/, ({ me }) => {
+    need(me(), "line:send");
+    return (db.admin.line_channels as { channel_id: number; name_th: string; is_active: boolean }[])
+      .filter((c) => c.is_active).map((c) => ({ channel_id: c.channel_id, name_th: c.name_th }));
+  }],
+  ["GET", /^\/api\/admin\/line-status$/, ({ me }) => (need(me(), "user:manage"),
+    { token_configured: false, secret_configured: false, auto_notify: true, webhook_url: `${location.origin}/api/line/webhook` })],
   ["GET", /^\/api\/admin\/audit$/, ({ me, q }) => (need(me(), "audit:read"), auditList(q))],
   ["GET", /^\/api\/admin\/audit\/verify$/, ({ me }) => (need(me(), "audit:read"), db.admin.audit_verify)],
   ["GET", /^\/api\/admin\/(users|roles|templates|line-channels|backups|personnel-without-account|document-types)$/, ({ me, m }) => {

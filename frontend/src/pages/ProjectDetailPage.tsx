@@ -8,13 +8,15 @@ import type { ProjectDetail } from "../types";
 interface Props {
   projectId: number;
   canApprove: boolean;
+  canShareLine: boolean;
   onBack: () => void;
 }
 
-export function ProjectDetailPage({ projectId, canApprove, onBack }: Props) {
+export function ProjectDetailPage({ projectId, canApprove, canShareLine, onBack }: Props) {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +35,7 @@ export function ProjectDetailPage({ projectId, canApprove, onBack }: Props) {
     <section className="project">
       <button type="button" className="link" onClick={onBack}>← รายการโครงการ</button>
       {error && <p role="alert" className="banner-error">{error}</p>}
+      {notice && <p role="status" className="banner-ok" onClick={() => setNotice(null)}>{notice}</p>}
       {project && (
         <>
           <div className="project-head">
@@ -44,7 +47,9 @@ export function ProjectDetailPage({ projectId, canApprove, onBack }: Props) {
             </p>
           </div>
           <div className="layout">
-            <WorkflowStepper project={project} activeStep={activeStep} onSelect={setActiveStep} onError={setError} />
+            <WorkflowStepper project={project} activeStep={activeStep} canShareLine={canShareLine}
+                             onSelect={setActiveStep} onError={setError}
+                             onNotice={(m) => { setError(null); setNotice(m); }} />
             {activeStep ? (
               <DynamicStepForm
                 // row_version เปลี่ยนหลังบันทึก → remount เพื่อโหลดสถานะใหม่ (ฟอร์มถูกล็อก)

@@ -53,5 +53,7 @@ services:
         sync: false
       - key: PROC_BOOTSTRAP_DEPARTMENT_NAME
         sync: false
-      - key: PROC_LINE_CHANNEL_ACCESS_TOKEN
+      - key: PROC_LINE_CHANNEL_ACCESS_TOKEN   # แจ้งเตือน LINE (ใส่ทีหลังได้ที่ Environment) — ดู deploy/LINE.md
+        sync: false
+      - key: PROC_LINE_CHANNEL_SECRET         # ใช้ตรวจลายเซ็น webhook
         sync: false

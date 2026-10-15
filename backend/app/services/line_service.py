@@ -22,6 +22,10 @@ import jwt
 
 from app.core.config import get_settings
 
+import re
+
+LINE_ID = re.compile(r"^[CU][0-9a-f]{32}$")
+
 STATUS_TH = {
     "SUBMITTED": ("รอพิจารณาอนุมัติ", "#F59E0B"),
     "APPROVED": ("อนุมัติแล้ว", "#16A34A"),
@@ -113,3 +117,84 @@ def push_message(to: str, message: dict[str, Any], retry_key: uuid.UUID,
         if owns_client:
             client.close()
     raise LineSendError("ส่งข้อความ LINE ไม่สำเร็จ")
+
+
+# ---------------------------------------------------------------------------
+# Webhook (รับ groupId อัตโนมัติ) + แจ้งเตือนอัตโนมัติ
+# ---------------------------------------------------------------------------
+def verify_signature(body: bytes, signature: str | None) -> bool:
+    """X-Line-Signature = base64(HMAC-SHA256(channel secret, body)) — เทียบแบบ constant-time."""
+    import base64
+    import hashlib
+    import hmac
+    s = get_settings()
+    if s.line_channel_secret is None or not signature:
+        return False
+    digest = hmac.new(s.line_channel_secret.get_secret_value().encode(), body, hashlib.sha256).digest()
+    return hmac.compare_digest(base64.b64encode(digest).decode(), signature)
+
+
+def group_name(group_id: str, client: httpx.Client | None = None) -> str | None:
+    """ชื่อกลุ่มจาก GET /v2/bot/group/{groupId}/summary (ไม่มีสิทธิ์/ล้มเหลว → None)."""
+    s = get_settings()
+    if s.line_channel_access_token is None:
+        return None
+    owns = client is None
+    client = client or httpx.Client(base_url=s.line_api_base, timeout=5.0)
+    try:
+        resp = client.get(f"/v2/bot/group/{group_id}/summary",
+                          headers={"Authorization": f"Bearer {s.line_channel_access_token.get_secret_value()}"})
+        if resp.status_code == 200:
+            name = str(resp.json().get("groupName", "")).strip()
+            return name[:100] or None
+    except (httpx.HTTPError, ValueError):
+        pass
+    finally:
+        if owns:
+            client.close()
+    return None
+
+
+def build_text_message(text: str) -> dict[str, Any]:
+    return {"type": "text", "text": text[:5000]}
+
+
+def notify_step_change(project_id: int, step_code: str, status: str, actor_name: str, user_id: int | None) -> None:
+    """ส่งการ์ดสถานะเข้าทุกกลุ่มที่เปิดใช้ — รันใน background หลังตอบ client แล้ว (ล้มเหลวไม่กระทบงานหลัก).
+
+    บันทึกผลทุกครั้งใน notification_logs เพื่อให้ผู้ดูแลเห็นว่าส่งถึงหรือไม่
+    """
+    import logging
+    from sqlalchemy import select
+    from app.core.crypto import decrypt_field
+    from app.core.database import SessionLocal
+    from app.models import NotificationChannel, NotificationLog, Project, ProjectStep, WorkflowStep
+    from app.rules.validators import baht_text
+
+    log = logging.getLogger("procurement.line")
+    s = get_settings()
+    if not s.line_auto_notify or s.line_channel_access_token is None:
+        return
+    with SessionLocal() as db:
+        project = db.get(Project, project_id)
+        step = db.scalar(select(ProjectStep).join(WorkflowStep).where(ProjectStep.project_id == project_id,
+                                                                      WorkflowStep.code == step_code))
+        channels = db.scalars(select(NotificationChannel).where(NotificationChannel.is_active.is_(True))).all()
+        if project is None or step is None or not channels:
+            return
+        message = build_status_message(
+            project_code=project.project_code, project_title=project.title_th, method_name=project.method.name_th,
+            step_name=step.step.name_th, status=status,
+            budget_text=f"{project.budget_amount:,.2f} บาท ({baht_text(project.budget_amount)})",
+            actor_name=actor_name)
+        for ch in channels:
+            retry_key = uuid.uuid4()
+            to = decrypt_field(ch.line_to_enc, "notification_channels.line_to")
+            try:
+                http_status, result = push_message(to, message, retry_key), "SENT"
+            except LineSendError as exc:
+                http_status, result = None, "FAILED"
+                log.warning("LINE auto-notify failed channel=%s project=%s: %s", ch.channel_id, project_id, exc)
+            db.add(NotificationLog(channel_id=ch.channel_id, project_id=project_id, retry_key=retry_key,
+                                   status=result, http_status=http_status, sent_by=user_id))
+        db.commit()
