@@ -1,3 +1,4 @@
+# Image หลักของระบบ (อยู่ที่รากของ repo เพื่อให้แพลตฟอร์มที่หา ./Dockerfile เป็นค่าเริ่มต้น เช่น Render ใช้ได้ทันที)
 # API (FastAPI) — Ubuntu 24.04: มี PostgreSQL 16 client (pg_dump/pg_restore รุ่นเดียวกับฐานข้อมูล),
 # LibreOffice (แปลง DOCX → PDF) และฟอนต์ไทยใน repository มาตรฐาน
 # มีหน้าเว็บ (React build) ใน /app/static ด้วย — ใช้เมื่อตั้ง PROC_STATIC_DIR (เช่น Render: service เดียว)

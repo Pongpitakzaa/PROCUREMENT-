@@ -215,7 +215,7 @@ cd deploy && docker compose build && sudo ./ci-smoke.sh
 | `check.sh` | ตรวจระบบหลังติดตั้ง |
 | `ci-smoke.sh` | ทดสอบชุดติดตั้งครบวงจร (ใช้ใน GitHub Actions) |
 | `docker-compose.yml` | นิยามบริการ เครือข่าย และสิทธิ์ของคอนเทนเนอร์ |
-| `api.Dockerfile` / `web.Dockerfile` | image ของ API และหน้าเว็บ |
+| `../Dockerfile` (รากของ repo) / `web.Dockerfile` | image ของ API (+หน้าเว็บสำหรับ Render) และหน้าเว็บ (Caddy) |
 | `Caddyfile` | HTTPS, reverse proxy, security headers, cache |
 | `db-init/00-create-app-db.sh` | สร้างบัญชี `proc_app` + schema ครั้งแรก |
 | `.env.example` | ตัวอย่างค่าตั้ง (ใช้ `install.sh` สร้าง `.env` จริง) |
