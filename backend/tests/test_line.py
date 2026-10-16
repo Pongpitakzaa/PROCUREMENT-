@@ -140,3 +140,17 @@ def test_signature_helper():
         assert line_service.verify_signature(body, sign(body + b" ")) is False
     finally:
         s.line_channel_secret = None
+
+
+def test_line_secrets_tolerate_pasted_whitespace_and_quotes(monkeypatch):
+    """ค่าที่วางใน Render/.env มักติดช่องว่าง ขึ้นบรรทัดใหม่ หรือเครื่องหมายคำพูด → ต้องใช้ได้และค่าว่างต้องเท่ากับไม่ตั้ง."""
+    from app.core.config import Settings
+    monkeypatch.setenv("PROC_LINE_CHANNEL_ACCESS_TOKEN", '  "abc123xyz=" \n')
+    monkeypatch.setenv("PROC_LINE_CHANNEL_SECRET", "'secret-value'\t")
+    s = Settings()
+    assert s.line_channel_access_token.get_secret_value() == "abc123xyz="
+    assert s.line_channel_secret.get_secret_value() == "secret-value"
+    monkeypatch.setenv("PROC_LINE_CHANNEL_ACCESS_TOKEN", "   ")
+    monkeypatch.setenv("PROC_LINE_CHANNEL_SECRET", '""')
+    s = Settings()
+    assert s.line_channel_access_token is None and s.line_channel_secret is None

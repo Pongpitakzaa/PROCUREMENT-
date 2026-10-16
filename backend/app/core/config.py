@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     bootstrap_admin_citizen_id: str | None = None
     bootstrap_department_name: str | None = None
 
+    @field_validator("line_channel_access_token", "line_channel_secret", mode="before")
+    @classmethod
+    def _clean_line_secret(cls, v: object) -> object:
+        """ตัดช่องว่าง/ขึ้นบรรทัดใหม่ และเครื่องหมายคำพูดที่ติดมาตอนวางค่า (LINE ตอบ 401 ถ้ามีอักขระเกิน) · ค่าว่าง = ไม่ตั้ง."""
+        if isinstance(v, SecretStr):
+            v = v.get_secret_value()
+        if isinstance(v, str):
+            v = v.strip().strip("\"'").strip()
+            return v or None
+        return v
+
     @field_validator("database_url", mode="before")
     @classmethod
     def _psycopg_driver(cls, v: object) -> object:
