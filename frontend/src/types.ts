@@ -272,6 +272,27 @@ export interface LineStatus {
   webhook_url: string;
 }
 
+/** โครงการใกล้ครบ/เลยกำหนดส่งมอบ (GET /api/deliveries/upcoming) */
+export interface UpcomingDelivery {
+  project_id: number;
+  project_code: string;
+  title_th: string;
+  due_date: string;          // YYYY-MM-DD
+  days_left: number;         // ติดลบ = เลยกำหนด
+  source: "PO" | "CONTRACT"; // PO = จากใบสั่งซื้อ · CONTRACT = ประมาณจากวันลงนาม + delivery_days
+  po_no: string | null;
+}
+
+/** สถานะแจ้งเตือนครบกำหนดส่งมอบ (ผู้ดูแล) */
+export interface DeliveryReminderStatus {
+  enabled: boolean;
+  days: number[];
+  hour: number;
+  scheduler: boolean;
+  last_sent_at: string | null;
+  upcoming: UpcomingDelivery[];
+}
+
 /** กลุ่มที่เปิดใช้ สำหรับปุ่ม "ส่ง LINE" (ไม่มี ID) */
 export interface LineTarget {
   channel_id: number;

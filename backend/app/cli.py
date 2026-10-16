@@ -148,6 +148,10 @@ MIGRATIONS = [
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS line_to_hmac CHAR(64) UNIQUE",
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS source VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    """CREATE TABLE IF NOT EXISTS delivery_reminders (
+        project_id INT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+        milestone VARCHAR(10) NOT NULL, due_date DATE NOT NULL,
+        sent_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (project_id, milestone, due_date))""",
 ]
 _INIT_LOCK = 7_300_001   # pg_advisory_lock: กันหลาย instance สร้าง schema พร้อมกัน
 _TITLES = ("นางสาว", "นาง", "นาย")
@@ -211,6 +215,15 @@ def _backfill_line_hmac(db) -> None:
         ch.line_to_hmac = blind_index(decrypt_field(ch.line_to_enc, "notification_channels.line_to"))
 
 
+def remind_deliveries(args: argparse.Namespace) -> None:
+    """ส่งแจ้งเตือนใกล้ครบกำหนดส่งมอบ (สำหรับ cron เมื่อปิดตัวตั้งเวลาในโปรเซส API)."""
+    from app.services.delivery_service import run_reminders
+    with SessionLocal() as db:
+        r = run_reminders(db, force=args.force)
+    print(f"remind-deliveries: ตรวจ {r['checked']} โครงการ ส่ง {r['sent']} ล้มเหลว {r['failed']}"
+          + (f" (ข้าม: {r['skipped_reason']})" if r["skipped_reason"] else ""))
+
+
 def init_db(_: argparse.Namespace) -> None:
     raw = engine.raw_connection()   # psycopg ตรง: รัน schema.sql ทั้งไฟล์ (มี function $$...$$) ได้ในครั้งเดียว
     try:
@@ -258,6 +271,10 @@ def main(argv: list[str] | None = None) -> None:
     b = sub.add_parser("backup", help="สำรองข้อมูล (ใช้กับ cron)")
     b.add_argument("--keep-days", type=int, default=0, help="ลบไฟล์สำรองอัตโนมัติที่เก่ากว่า N วัน (0 = ไม่ลบ)")
     b.set_defaults(fn=backup)
+
+    rd = sub.add_parser("remind-deliveries", help="ส่งแจ้งเตือนใกล้ครบกำหนดส่งมอบเข้ากลุ่ม LINE (ใช้กับ cron)")
+    rd.add_argument("--force", action="store_true", help="ส่งได้ทันทีไม่รอเวลาเริ่มส่ง (PROC_DELIVERY_REMINDER_HOUR)")
+    rd.set_defaults(fn=remind_deliveries)
 
     sub.add_parser("init-db", help="สร้าง/ปรับฐานข้อมูลอัตโนมัติ + ผู้ดูแลคนแรก (รันซ้ำได้)").set_defaults(fn=init_db)
 

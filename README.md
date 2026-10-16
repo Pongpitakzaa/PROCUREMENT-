@@ -7,6 +7,7 @@
 - **Dynamic Form** ฟอร์มรายขั้นตอนสร้างจาก spec ฝั่ง backend และตรวจด้วยตรรกะเดียวกันทั้ง 2 ฝั่ง
 - **CGD Standard Forms Only** ออกเอกสารจากไฟล์แบบฟอร์มกรมบัญชีกลางที่ลงทะเบียนและรับรองแล้วเท่านั้น → **Word / PDF / Excel**
 - **LINE Messaging API** แจ้งสถานะเข้ากลุ่มงานอัตโนมัติเมื่อส่งพิจารณา/อนุมัติ + แชร์ลิงก์เอกสาร · webhook ลงทะเบียนกลุ่มเอง (LINE Notify ยุติบริการแล้ว)
+- **แจ้งเตือนครบกำหนดส่งมอบ** ล่วงหน้า 7/3/1 วัน วันครบกำหนด และเมื่อเลยกำหนด (พร้อมอัตราค่าปรับ) ส่งเข้ากลุ่ม LINE เอง + แถบเตือนในหน้าโครงการ
 - **Dashboard & Report** สรุปยอดรายเดือน/รายวิธี + ส่งออก Excel
 - **Backup / Restore** จากหน้าเว็บ (เข้ารหัส AES-256-GCM, ตรวจ checksum, สำรองก่อนกู้อัตโนมัติ)
 - **Security** Argon2id, JWT, RBAC + Segregation of Duties, เข้ารหัสข้อมูลส่วนบุคคล, audit log แบบ hash chain
@@ -43,7 +44,7 @@
 | กฎระเบียบพัสดุ (rule engine) | `backend/app/rules/procurement_rules.py` |
 | Dynamic Form spec + server validation | `backend/app/rules/step_forms.py` |
 | Export Word / PDF / Excel | `backend/app/services/export_service.py` |
-| แจ้งเตือน LINE | `backend/app/services/line_service.py` · `backend/app/api/documents.py` |
+| แจ้งเตือน LINE | `backend/app/services/line_service.py` · `backend/app/services/delivery_service.py` · `backend/app/api/documents.py` |
 | Backup / Restore | `backend/app/services/backup_service.py` · `backend/app/api/admin.py` |
 | Auth / RBAC | `backend/app/core/security.py` |
 | Dynamic Form (React) + validation | `frontend/src/components/DynamicStepForm.tsx` · `frontend/src/validation.ts` |

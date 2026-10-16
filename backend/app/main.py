@@ -1,5 +1,7 @@
 import logging
+import threading
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,8 +20,27 @@ log = logging.getLogger("procurement")
 settings = get_settings()
 is_prod = settings.environment == "production"
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """ตัวตั้งเวลาแจ้งเตือนครบกำหนดส่งมอบ: thread เบา ๆ ตรวจทุกชั่วโมง (idempotent ผ่านตาราง delivery_reminders)."""
+    stop = threading.Event()
+    worker = None
+    if settings.delivery_reminder_enabled and settings.delivery_reminder_scheduler:
+        from app.services.delivery_service import scheduler_loop
+        worker = threading.Thread(target=scheduler_loop, args=(stop,), name="delivery-reminders", daemon=True)
+        worker.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        if worker is not None:
+            worker.join(timeout=5)
+
+
 app = FastAPI(
     title=settings.app_name,
+    lifespan=lifespan,
     # ปิดหน้าเอกสาร API บน production ลดข้อมูลที่ผู้โจมตีใช้สำรวจระบบได้
     docs_url=None if is_prod else "/docs",
     redoc_url=None,

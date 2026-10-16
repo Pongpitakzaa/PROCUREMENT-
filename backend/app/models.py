@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import BigInteger, ForeignKey, Numeric, SmallInteger, String, Text, func
+from sqlalchemy import BigInteger, Date, ForeignKey, Numeric, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import BYTEA, INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -302,6 +302,14 @@ class NotificationLog(Base):
     status: Mapped[str] = mapped_column(String(10))
     http_status: Mapped[int | None] = mapped_column(SmallInteger)
     sent_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"))
+    sent_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+
+
+class DeliveryReminder(Base):
+    __tablename__ = "delivery_reminders"
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.project_id", ondelete="CASCADE"), primary_key=True)
+    milestone: Mapped[str] = mapped_column(String(10), primary_key=True)
+    due_date: Mapped[date] = mapped_column(Date, primary_key=True)
     sent_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 

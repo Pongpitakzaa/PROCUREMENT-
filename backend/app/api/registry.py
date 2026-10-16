@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.security import Perm, require
 from app.models import NotificationChannel, NotificationLog, Personnel, User
 from app.schemas import StrictModel
-from app.services import line_service
+from app.services import delivery_service, line_service
 from app.services.audit_service import write_audit
 
 router = APIRouter(prefix="/api", tags=["registry"])
@@ -53,6 +53,24 @@ def line_status(request: Request, _: Annotated[User, Depends(require(Perm.USER_M
             "secret_configured": s.line_channel_secret is not None,
             "auto_notify": s.line_auto_notify,
             "webhook_url": f"{base}/api/line/webhook"}
+
+
+@router.get("/admin/delivery-reminders")
+def delivery_reminder_status(db: DB, _: Annotated[User, Depends(require(Perm.USER_MANAGE))]) -> dict:
+    """สถานะแจ้งเตือนครบกำหนดส่งมอบ + โครงการที่ใกล้ครบ/เลยกำหนด สำหรับหน้าผู้ดูแล."""
+    s = get_settings()
+    return {"enabled": s.delivery_reminder_enabled, "days": sorted(s.delivery_reminder_days, reverse=True),
+            "hour": s.delivery_reminder_hour, "scheduler": s.delivery_reminder_scheduler,
+            **delivery_service.last_run_info(db), "upcoming": delivery_service.upcoming(db, within_days=30)}
+
+
+@router.post("/admin/delivery-reminders/run")
+def delivery_reminder_run(request: Request, db: DB, user: Annotated[User, Depends(require(Perm.USER_MANAGE))]) -> dict:
+    """ปุ่ม "ตรวจและส่งเดี๋ยวนี้" — ส่งเฉพาะ milestone ที่ยังไม่เคยส่ง (กันซ้ำเหมือนรอบอัตโนมัติ)."""
+    result = delivery_service.run_reminders(db, force=True)
+    write_audit(db, action="LINE_DELIVERY_REMINDER", user_id=user.user_id, request=request, new=result)
+    db.commit()
+    return result
 
 
 @router.get("/line-channels")

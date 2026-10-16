@@ -824,3 +824,17 @@ button.link.small { font-size: 12px; }
   .channel-list li { flex-wrap: wrap; }
   .channel-actions { width: 100%; justify-content: flex-end; }
 }
+
+/* แจ้งเตือนครบกำหนดส่งมอบ */
+.due-panel { margin: 0 0 16px; padding: 14px 18px; border-left: 4px solid #F59E0B; }
+.due-panel h3 { margin: 0 0 8px; font-size: 16px; }
+.due-panel ul, .due-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.due-panel li, .due-list li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: 14px; }
+.due-panel li .link { text-align: left; padding: 0; }
+.due-when { color: #B45309; white-space: nowrap; font-size: 13px; }
+.due-panel li.soon .due-when, .due-list li.soon .due-when { color: #C2410C; font-weight: 600; }
+.due-panel li.overdue .due-when, .due-list li.overdue .due-when { color: var(--err); font-weight: 600; }
+.delivery-box { margin: 14px 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.delivery-box .section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.delivery-box h3 { margin: 0; font-size: 15px; }
+.due-list { margin: 6px 0 8px; }

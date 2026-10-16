@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     line_channel_secret: SecretStr | None = None   # ใช้ตรวจลายเซ็น webhook (X-Line-Signature)
     line_auto_notify: bool = True                  # แจ้งเตือนอัตโนมัติเมื่อส่งพิจารณา/อนุมัติ/ส่งกลับ
     line_api_base: str = "https://api.line.me"
+    # แจ้งเตือนใกล้ครบกำหนดส่งมอบ (ส่งเข้ากลุ่ม LINE ที่เปิดใช้ วันละครั้งต่อ milestone)
+    delivery_reminder_enabled: bool = True
+    delivery_reminder_days: list[int] = [7, 3, 1, 0]   # ล่วงหน้ากี่วัน (0 = วันครบกำหนด) · เลยกำหนดแจ้งอีกครั้งเสมอ
+    delivery_reminder_hour: int = Field(8, ge=0, le=23)  # เริ่มส่งได้ตั้งแต่กี่โมง (เวลาไทย) ไม่ส่งกลางดึก
+    delivery_reminder_scheduler: bool = True             # ตัวตั้งเวลาในโปรเซส API (ปิดเมื่อใช้ cron: python -m app.cli remind-deliveries)
     public_base_url: str = "https://procurement.example.go.th"
     download_link_minutes: int = 60
 

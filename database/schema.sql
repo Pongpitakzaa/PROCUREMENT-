@@ -301,6 +301,15 @@ CREATE TABLE notification_logs (
     sent_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- แจ้งเตือนใกล้ครบกำหนดส่งมอบ: บันทึกว่าส่ง milestone ใดของโครงการไปแล้ว (PK กันส่งซ้ำแม้มีหลาย worker)
+CREATE TABLE delivery_reminders (
+    project_id  INT         NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+    milestone   VARCHAR(10) NOT NULL,            -- D7, D3, D1, D0 (วันครบกำหนด), OVERDUE
+    due_date    DATE        NOT NULL,            -- กำหนดส่งมอบที่ใช้คำนวณตอนส่ง (เปลี่ยนแล้วส่งใหม่ได้)
+    sent_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (project_id, milestone, due_date)
+);
+
 CREATE TABLE backup_jobs (
     backup_job_id  SERIAL PRIMARY KEY,
     job_type       VARCHAR(10)  NOT NULL CHECK (job_type IN ('BACKUP','RESTORE')),
