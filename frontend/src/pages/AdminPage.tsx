@@ -8,7 +8,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api";
-import type { AuditRow, BackupManifest, LineChannel, LineStatus, TemplateRow } from "../types";
+import type { AuditRow, BackupManifest, DeliveryReminderStatus, LineChannel, LineStatus, TemplateRow } from "../types";
+import { dueLabel, thaiDate } from "../deliveryText";
 import { UsersTab } from "./admin/UsersTab";
 
 interface Props {
@@ -493,20 +494,29 @@ const LINE_ID = /^[CU][0-9a-f]{32}$/;
 function LineTab() {
   const [rows, setRows] = useState<LineChannel[] | null>(null);
   const [status, setStatus] = useState<LineStatus | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryReminderStatus | null>(null);
   const [name, setName] = useState("");
   const [lineTo, setLineTo] = useState("");
   const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState<number | "add" | null>(null);
+  const [busy, setBusy] = useState<number | "add" | "delivery" | null>(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(() => {
     api<LineChannel[]>("/api/admin/line-channels").then(setRows).catch((e) => setMsg({ ok: false, text: errText(e) }));
     api<LineStatus>("/api/admin/line-status").then(setStatus).catch(() => setStatus(null));
+    api<DeliveryReminderStatus>("/api/admin/delivery-reminders").then(setDelivery).catch(() => setDelivery(null));
   }, []);
+  const runDelivery = () =>
+    run("delivery", () => api<{ checked: number; sent: number; failed: number; skipped_reason: string | null }>(
+      "/api/admin/delivery-reminders/run", { method: "POST" }),
+      (r) => r.skipped_reason === "NO_ACTIVE_CHANNEL" ? "ยังไม่มีกลุ่มที่เปิดใช้ — เปิดใช้กลุ่มก่อน"
+        : r.skipped_reason === "NO_LINE_TOKEN" ? "ยังไม่ได้ตั้ง Channel access token"
+        : r.skipped_reason === "DISABLED" ? "ปิดการแจ้งเตือนครบกำหนดไว้ (PROC_DELIVERY_REMINDER_ENABLED=0)"
+        : `ตรวจ ${r.checked} โครงการ · ส่ง ${r.sent} ข้อความ${r.failed ? ` · ล้มเหลว ${r.failed}` : ""}${r.sent === 0 && !r.failed ? " (ไม่มีโครงการถึงกำหนดแจ้งวันนี้ หรือแจ้งไปแล้ว)" : ""}`);
   useEffect(load, [load]);
 
-  async function run<T>(key: number | "add", fn: () => Promise<T>, okText: (r: T) => string) {
+  async function run<T>(key: number | "add" | "delivery", fn: () => Promise<T>, okText: (r: T) => string) {
     setBusy(key);
     try {
       const r = await fn();
@@ -620,6 +630,40 @@ function LineTab() {
           <li>ตั้งชื่อ กด <b>ทดสอบ</b> แล้ว <b>เปิดใช้</b></li>
         </ol>
         {!ready && <p className="muted small">ยังตั้งค่าไม่ครบ — เพิ่มกลุ่มด้วยมือได้ แต่จะส่งข้อความไม่ได้จนกว่าจะตั้ง token</p>}
+        <div className="delivery-box">
+          <div className="section-head">
+            <h3>แจ้งเตือนครบกำหนดส่งมอบ</h3>
+            <button type="button" className="ghost" onClick={runDelivery} disabled={busy === "delivery" || !delivery}>
+              {busy === "delivery" ? "กำลังตรวจ…" : "ตรวจและส่งเดี๋ยวนี้"}
+            </button>
+          </div>
+          {delivery ? (
+            <>
+              <ul className="setup-list">
+                <li className={delivery.enabled ? "good" : "bad"}>
+                  {delivery.enabled ? `เปิดอยู่ — แจ้งล่วงหน้า ${delivery.days.filter((d) => d > 0).join("/")} วัน วันครบกำหนด และเมื่อเลยกำหนด (ทุก 7 วัน)` : "ปิด (PROC_DELIVERY_REMINDER_ENABLED)"}
+                </li>
+                <li className={delivery.scheduler ? "good" : ""}>
+                  {delivery.scheduler ? `ระบบตรวจเองทุกชั่วโมง ตั้งแต่ ${String(delivery.hour).padStart(2, "0")}:00 น.` : "ตรวจผ่าน cron (python -m app.cli remind-deliveries)"}
+                </li>
+                <li className={delivery.last_sent_at ? "good" : ""}>
+                  ส่งล่าสุด {delivery.last_sent_at ? new Date(delivery.last_sent_at).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" }) : "ยังไม่เคยส่ง"}
+                </li>
+              </ul>
+              {delivery.upcoming.length > 0 ? (
+                <ul className="due-list">
+                  {delivery.upcoming.map((d) => (
+                    <li key={d.project_id} className={d.days_left < 0 ? "overdue" : d.days_left <= 3 ? "soon" : ""}>
+                      <span><b>{d.project_code}</b> {d.title_th}</span>
+                      <span className="due-when">{dueLabel(d.days_left)} · {thaiDate(d.due_date)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="muted small">ไม่มีโครงการที่จะครบกำหนดส่งมอบใน 30 วัน</p>}
+              <p className="muted small">กำหนดส่งมอบมาจากช่อง “กำหนดส่งมอบภายในวันที่” ของใบสั่งซื้อ/สั่งจ้าง หรือวันลงนามสัญญา + กำหนดเวลาส่งมอบของโครงการ</p>
+            </>
+          ) : <p className="muted small">กำลังโหลด…</p>}
+        </div>
         <details className="manual-add">
           <summary>เพิ่มกลุ่มด้วยมือ (ถ้าทราบ groupId อยู่แล้ว)</summary>
           <form onSubmit={add} noValidate>

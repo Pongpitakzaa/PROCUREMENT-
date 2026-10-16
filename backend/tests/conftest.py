@@ -13,6 +13,7 @@ os.environ.setdefault("PROC_BLIND_INDEX_KEY", "test-blind-index-" + "y" * 32)
 os.environ.setdefault("PROC_DATA_KEYS", '{"k1": "%s"}' % base64.b64encode(b"k" * 32).decode())
 os.environ.setdefault("PROC_BACKUP_KEY", base64.b64encode(b"b" * 32).decode())
 os.environ.setdefault("PROC_LINE_CHANNEL_ACCESS_TOKEN", "test-line-token")
+os.environ["PROC_DELIVERY_REMINDER_SCHEDULER"] = "0"   # ทดสอบเรียก run_reminders ตรง ไม่ให้ thread ส่งเอง
 os.environ["PROC_TEMPLATE_DIR"] = str(_TMP / "templates")
 os.environ["PROC_OUTPUT_DIR"] = str(_TMP / "outputs")
 os.environ["PROC_BACKUP_DIR"] = str(_TMP / "backups")

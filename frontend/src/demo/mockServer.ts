@@ -229,6 +229,17 @@ function listItem(p: ProjectListItem): ProjectListItem {
            current_step: cur ? { code: cur.code, name_th: cur.name_th, status: cur.status } : null };
 }
 
+/** เดโม: โครงการที่ออกใบสั่งซื้อแล้ว (ขั้น PURCHASE_ORDER อนุมัติ) ถือว่าครบกำหนดส่งมอบใน 5 วันนับจากวันนี้ */
+function demoUpcoming() {
+  const today = new Date();
+  return db.projects.filter((p) => p.status === "COMPLETED" || p.status === "CONTRACTED").map((p, i) => {
+    const d = new Date(today); d.setDate(d.getDate() + 5 - i * 7);
+    const left = Math.round((d.getTime() - today.setHours(0, 0, 0, 0)) / 86_400_000);
+    return { project_id: p.project_id, project_code: p.project_code, title_th: p.title_th, due_date: d.toISOString().slice(0, 10),
+             days_left: left, source: "PO" as const, po_no: null };
+  });
+}
+
 function listProjects(q: URLSearchParams) {
   const text = (q.get("q") ?? "").trim().toLowerCase();
   return db.projects.map(listItem).filter((p) =>
@@ -491,6 +502,11 @@ const routes: Route[] = [
     return (db.admin.line_channels as { channel_id: number; name_th: string; is_active: boolean }[])
       .filter((c) => c.is_active).map((c) => ({ channel_id: c.channel_id, name_th: c.name_th }));
   }],
+  ["GET", /^\/api\/deliveries\/upcoming$/, ({ me }) => (me(), demoUpcoming())],
+  ["GET", /^\/api\/admin\/delivery-reminders$/, ({ me }) => (need(me(), "user:manage"),
+    { enabled: true, days: [7, 3, 1, 0], hour: 8, scheduler: true, last_sent_at: null, upcoming: demoUpcoming() })],
+  ["POST", /^\/api\/admin\/delivery-reminders\/run$/, ({ me }) => (need(me(), "user:manage"),
+    { checked: demoUpcoming().length, sent: 0, failed: 0, skipped_reason: "NO_LINE_TOKEN", today: new Date().toISOString().slice(0, 10) })],
   ["GET", /^\/api\/admin\/line-status$/, ({ me }) => (need(me(), "user:manage"),
     { token_configured: false, secret_configured: false, auto_notify: true, webhook_url: `${location.origin}/api/line/webhook` })],
   ["GET", /^\/api\/admin\/audit$/, ({ me, q }) => (need(me(), "audit:read"), auditList(q))],

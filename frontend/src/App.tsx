@@ -25,7 +25,11 @@ export function App() {
   const [authed, setAuthed] = useState(isLoggedIn());
   const [me, setMe] = useState<Me | null>(null);
   const [methods, setMethods] = useState<MethodInfo[]>([]);
-  const [view, setView] = useState<View>({ name: "list" });
+  const [view, setView] = useState<View>(() => {
+    // ลิงก์จากการ์ด LINE: /?project=ID → เปิดโครงการนั้นหลังเข้าสู่ระบบ
+    const id = Number(new URLSearchParams(location.search).get("project"));
+    return id > 0 ? { name: "detail", projectId: id } : { name: "list" };
+  });
   const [error, setError] = useState<string | null>(null);
   const [changingPw, setChangingPw] = useState(false);
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -53,7 +57,7 @@ export function App() {
     try {
       await login(username, password);
       setError(null);
-      setView({ name: "list" });
+      if (view.name !== "detail") setView({ name: "list" });
       setAuthed(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "เข้าสู่ระบบไม่สำเร็จ");

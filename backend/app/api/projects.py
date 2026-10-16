@@ -183,6 +183,14 @@ def list_projects(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))
     return out
 
 
+@router.get("/deliveries/upcoming")
+def upcoming_deliveries(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))],
+                        within_days: Annotated[int, Query(ge=0, le=90)] = 14) -> list[dict]:
+    """โครงการใกล้ครบ/เลยกำหนดส่งมอบ สำหรับแถบเตือนในหน้ารายการโครงการ."""
+    from app.services.delivery_service import upcoming
+    return upcoming(db, within_days=within_days)
+
+
 @router.get("/projects/{project_id}")
 def read_project(project_id: int, db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))]) -> dict:
     p = get_project(db, project_id)

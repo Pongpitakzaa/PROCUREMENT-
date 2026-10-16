@@ -159,6 +159,12 @@ def build_text_message(text: str) -> dict[str, Any]:
     return {"type": "text", "text": text[:5000]}
 
 
+def decrypt_channel(channel) -> str:
+    """groupId/userId ของกลุ่ม (เก็บเข้ารหัสในฐานข้อมูล)."""
+    from app.core.crypto import decrypt_field
+    return decrypt_field(channel.line_to_enc, "notification_channels.line_to")
+
+
 def notify_step_change(project_id: int, step_code: str, status: str, actor_name: str, user_id: int | None) -> None:
     """ส่งการ์ดสถานะเข้าทุกกลุ่มที่เปิดใช้ — รันใน background หลังตอบ client แล้ว (ล้มเหลวไม่กระทบงานหลัก).
 
