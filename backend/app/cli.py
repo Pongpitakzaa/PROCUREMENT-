@@ -156,6 +156,20 @@ MIGRATIONS = [
                      AND pg_get_constraintdef(oid) ILIKE '%approved_by <> submitted_by%'
          LOOP EXECUTE format('ALTER TABLE project_steps DROP CONSTRAINT %I', c); END LOOP;
        END $$""",
+    # แหล่งที่มา (URL กรมบัญชีกลาง) ของแบบฟอร์มไม่บังคับแล้ว: ถอด NOT NULL และแทน CHECK ให้ยอมรับ NULL
+    "ALTER TABLE document_templates ALTER COLUMN source_url DROP NOT NULL",
+    """DO $$ DECLARE c text;
+       BEGIN
+         FOR c IN SELECT conname FROM pg_constraint
+                   WHERE conrelid = 'document_templates'::regclass AND contype = 'c'
+                     AND pg_get_constraintdef(oid) ILIKE '%source_url%' AND pg_get_constraintdef(oid) NOT ILIKE '%IS NULL%'
+         LOOP EXECUTE format('ALTER TABLE document_templates DROP CONSTRAINT %I', c); END LOOP;
+         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'document_templates'::regclass
+                         AND conname = 'document_templates_source_url_check') THEN
+           ALTER TABLE document_templates ADD CONSTRAINT document_templates_source_url_check
+             CHECK (source_url IS NULL OR source_url ~* '^https://([a-z0-9-]+\\.)*gprocurement\\.go\\.th/');
+         END IF;
+       END $$""",
     """CREATE TABLE IF NOT EXISTS delivery_reminders (
         project_id INT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
         milestone VARCHAR(10) NOT NULL, due_date DATE NOT NULL,

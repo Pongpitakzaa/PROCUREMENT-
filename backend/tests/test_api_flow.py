@@ -212,6 +212,10 @@ def test_full_specific_method_flow(client, monkeypatch):
     r = client.post("/api/admin/templates", headers=admin, files=files,
                     data={**upload, "source_url": "https://example.com/form.docx"})
     assert r.status_code == 422                                                     # ไม่ใช่ gprocurement.go.th
+    r = client.post("/api/admin/templates", headers=admin, files=files, data={**upload, "version_label": "2570.0"})
+    assert r.status_code == 201, r.text                                             # แหล่งที่มาไม่บังคับ
+    assert client.post("/api/admin/templates", headers=admin, files=files,
+                       data={**upload, "version_label": "2570.0b", "source_url": "   "}).status_code == 201   # ช่องว่าง = ไม่ใส่
     r = client.post("/api/admin/templates", headers=admin, files=files, data={**upload, "source_url": CGD_URL})
     assert r.status_code == 201, r.text
     tpl_id = r.json()["template_id"]

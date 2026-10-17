@@ -243,7 +243,7 @@ CREATE TABLE document_templates (
     document_type_id  SMALLINT     NOT NULL REFERENCES document_types(document_type_id),
     version_label     VARCHAR(30)  NOT NULL,
     -- ต้องระบุแหล่งที่มาจากกรมบัญชีกลางเสมอ (กติกา: CGD Standard Forms Only)
-    source_url        VARCHAR(500) NOT NULL CHECK (source_url ~* '^https://([a-z0-9-]+\.)*gprocurement\.go\.th/'),
+    source_url        VARCHAR(500) CHECK (source_url IS NULL OR source_url ~* '^https://([a-z0-9-]+\.)*gprocurement\.go\.th/'),  -- ไม่บังคับ ถ้าใส่ต้องเป็นเว็บกรมบัญชีกลาง
     cgd_reference     VARCHAR(255) NOT NULL,   -- เลขหนังสือเวียน/ประกาศ กวพ. ที่กำหนดแบบ
     file_format       VARCHAR(5)   NOT NULL CHECK (file_format IN ('DOCX','XLSX')),
     storage_path      VARCHAR(500) NOT NULL,
