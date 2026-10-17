@@ -40,7 +40,9 @@ class Personnel(Base):
 
     @property
     def full_name_th(self) -> str:
-        return f"{self.title_th}{self.first_name_th} {self.last_name_th}"
+        # คำย่อยศ (ลงท้ายด้วย .) เว้นวรรคก่อนชื่อตามแบบหนังสือราชการ เช่น "พ.อ.อ. สมชาย ใจดี" · "นายสมชาย ใจดี" ไม่เว้น
+        sep = " " if self.title_th.endswith(".") else ""
+        return f"{self.title_th}{sep}{self.first_name_th} {self.last_name_th}"
 
 
 class Role(Base):

@@ -20,3 +20,11 @@ def test_role_segregation_of_duties():
     assert role_combination_problems({"AUDITOR", "EXECUTIVE"})                  # auditor ต้องอิสระ
     assert role_combination_problems(set())
     assert role_combination_problems({"ROOT"})
+
+
+def test_full_name_spacing_for_rank_abbreviations():
+    """คำย่อยศ (พ.อ.อ., น.อ.) เว้นวรรคก่อนชื่อ · นาย/นาง/นางสาว ไม่เว้น."""
+    from app.models import Personnel
+    assert Personnel(title_th="นาย", first_name_th="สมชาย", last_name_th="ใจดี").full_name_th == "นายสมชาย ใจดี"
+    assert Personnel(title_th="พ.อ.อ.", first_name_th="สมชาย", last_name_th="ใจดี").full_name_th == "พ.อ.อ. สมชาย ใจดี"
+    assert Personnel(title_th="น.อ.", first_name_th="สมหญิง", last_name_th="รักงาน").full_name_th == "น.อ. สมหญิง รักงาน"
