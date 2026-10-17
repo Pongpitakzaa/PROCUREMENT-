@@ -81,12 +81,18 @@ def submit_step(db: Session, project: Project, step_code: str, raw: dict[str, An
     return ps
 
 
+def can_self_approve(user: User) -> bool:
+    """บทบาทที่อนุญาตให้อนุมัติรายการของตนเอง (ค่าเริ่มต้น: หัวหน้าเจ้าหน้าที่) — ดู PROC_SELF_APPROVAL_ROLES."""
+    from app.core.config import get_settings
+    return bool(user.role_codes & set(get_settings().self_approval_roles))
+
+
 def decide_step(db: Session, project: Project, step_code: str, approve: bool, user: User) -> ProjectStep:
     ps = _project_steps(db, project).get(step_code)
     if ps is None or ps.status != "SUBMITTED":
         raise _fail("STEP_NOT_SUBMITTED", "ขั้นตอนนี้ยังไม่ได้ส่งพิจารณา")
-    if ps.submitted_by == user.user_id:
-        # Segregation of Duties: ผู้จัดทำ/เสนอ ต้องไม่ใช่ผู้อนุมัติ
+    if ps.submitted_by == user.user_id and not can_self_approve(user):
+        # Segregation of Duties: ผู้จัดทำ/เสนอ ต้องไม่ใช่ผู้อนุมัติ (ยกเว้นบทบาทใน PROC_SELF_APPROVAL_ROLES)
         raise _fail("SOD_VIOLATION", "ผู้เสนอไม่สามารถอนุมัติรายการของตนเองได้")
     ps.status = "APPROVED" if approve else "REJECTED"
     ps.approved_by, ps.approved_at = (user.user_id, datetime.now(UTC)) if approve else (None, None)

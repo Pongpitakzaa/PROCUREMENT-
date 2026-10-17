@@ -320,8 +320,8 @@ function decideStep(me: Me, id: number, code: string, body: { approve: boolean; 
   const d = projectOf(id);
   const step = d.steps.find((s) => s.code === code);
   if (!step || step.status !== "SUBMITTED") throw failRules([rule("STEP_NOT_SUBMITTED", "ขั้นตอนนี้ยังไม่ได้ส่งพิจารณา")]);
-  if (submittedBy.get(`${id}/${code}`) === me.username) {
-    // Segregation of Duties: ผู้จัดทำ/เสนอ ต้องไม่ใช่ผู้อนุมัติ
+  if (submittedBy.get(`${id}/${code}`) === me.username && !me.roles.includes("HEAD_OF_PROCUREMENT")) {
+    // Segregation of Duties: ผู้จัดทำ/เสนอ ต้องไม่ใช่ผู้อนุมัติ (ยกเว้นหัวหน้าเจ้าหน้าที่ — ค่าเริ่มต้นของ PROC_SELF_APPROVAL_ROLES)
     throw failRules([rule("SOD_VIOLATION", "ผู้เสนอไม่สามารถอนุมัติรายการของตนเองได้")]);
   }
   step.status = body.approve ? "APPROVED" : "REJECTED";
