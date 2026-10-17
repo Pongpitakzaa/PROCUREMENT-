@@ -42,6 +42,8 @@ async def webhook(request: Request, db: DB,
             continue
         kind = ev.get("type")
         text = str((ev.get("message") or {}).get("text", "")).strip() if kind == "message" else ""
+        # แสดง groupId ใน log ของเซิร์ฟเวอร์ (ผู้ดูแลอ่านได้จาก Render → Logs) สำหรับกรณีต้องกรอกด้วยมือ
+        log.info("LINE webhook: %s from group %s", kind, gid)
         if kind == "join" or (kind == "message" and text in REGISTER_WORDS):
             _register_group(db, request, gid)
         elif kind == "leave":
