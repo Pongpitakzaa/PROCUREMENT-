@@ -6,6 +6,7 @@
  * กฎเดียวกับ backend: แบ่งแยกหน้าที่ระดับบทบาท + ห้ามระงับ/ถอด ADMIN ของตนเอง
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TITLE_GROUPS, initialOf } from "../../titles";
 import { ApiError, api } from "../../api";
 import type { Department, ManagedUser, RoleCode, RoleInfo } from "../../types";
 import { roleProblems, USERNAME_RE } from "../../userValidation";
@@ -72,7 +73,7 @@ export function UsersTab({ meId }: { meId: number }) {
             <li key={u.user_id}>
               <button type="button" className={`user-row ${selected?.user_id === u.user_id ? "selected" : ""} ${u.is_active ? "" : "inactive"}`}
                       onClick={() => { setMsg(null); setPanel({ kind: "edit", id: u.user_id }); }}>
-                <span className="avatar" aria-hidden>{u.full_name_th.replace(/^(นาย|นางสาว|นาง)/, "").trim().charAt(0)}</span>
+                <span className="avatar" aria-hidden>{initialOf(u.full_name_th)}</span>
                 <span className="user-main">
                   <strong>{u.full_name_th}{u.user_id === meId && <span className="muted"> (คุณ)</span>}</strong>
                   <span className="muted small">{u.username} · {u.position_th}</span>
@@ -335,7 +336,11 @@ function CreateUserForm({ roles, onCancel, onCreated }: {
           <div className="name-row">
             {field("title_th", "คำนำหน้า", (
               <select id="u-title_th" value={person.title_th} onChange={(e) => setP("title_th", e.target.value)}>
-                {["นาย", "นาง", "นางสาว"].map((t) => <option key={t}>{t}</option>)}
+                {TITLE_GROUPS.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.titles.map((t) => <option key={t.value} value={t.value}>{t.full ? `${t.value} (${t.full})` : t.value}</option>)}
+                  </optgroup>
+                ))}
               </select>
             ))}
             {field("first_name_th", "ชื่อ", <input id="u-first_name_th" maxLength={100} value={person.first_name_th} onChange={(e) => setP("first_name_th", e.target.value)} />)}

@@ -154,7 +154,8 @@ MIGRATIONS = [
         sent_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (project_id, milestone, due_date))""",
 ]
 _INIT_LOCK = 7_300_001   # pg_advisory_lock: กันหลาย instance สร้าง schema พร้อมกัน
-_TITLES = ("นางสาว", "นาง", "นาย")
+# เรียงยาว→สั้น เพื่อให้ "นางสาว" จับก่อน "นาง" · รวมคำย่อยศทหารอากาศ (พันจ่าอากาศตรี–นาวาอากาศเอก)
+_TITLES = ("นางสาว", "นาง", "นาย", "พ.อ.ต.", "พ.อ.ท.", "พ.อ.อ.", "ร.ต.", "ร.ท.", "ร.อ.", "น.ต.", "น.ท.", "น.อ.")
 
 
 def _schema_dir() -> Path:
@@ -291,7 +292,7 @@ def main(argv: list[str] | None = None) -> None:
     a = sub.add_parser("create-admin", help="สร้างบัญชีผู้ดูแลระบบ (ติดตั้งครั้งแรก)")
     a.add_argument("--username", required=True)
     a.add_argument("--department", required=True, help="รหัสหน่วยงาน")
-    a.add_argument("--title", required=True, help="คำนำหน้า เช่น นาย นาง นางสาว")
+    a.add_argument("--title", required=True, help="คำนำหน้า เช่น นาย นาง นางสาว หรือยศ เช่น พ.อ.อ. น.ท.")
     a.add_argument("--first-name", required=True)
     a.add_argument("--last-name", required=True)
     a.add_argument("--position", required=True)

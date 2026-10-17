@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { initialOf } from "./titles";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
 import { DemoAccounts, DemoBanner } from "./components/DemoNotice";
@@ -131,7 +132,7 @@ export function App() {
         {me && (
           <details className="user user-menu" ref={menuRef}>
             <summary>
-              <span className="avatar" aria-hidden>{me.full_name_th.replace(/^(นาย|นางสาว|นาง)/, "").trim().charAt(0)}</span>
+              <span className="avatar" aria-hidden>{initialOf(me.full_name_th)}</span>
               <span className="who"><span>{me.full_name_th}</span><small>{me.roles.map((r) => ROLE_TH[r] ?? r).join(", ")}</small></span>
             </summary>
             <div className="menu card" role="menu">
