@@ -14,7 +14,54 @@ interface Props {
   projectId: number;
   stepCode: string;
   canApprove: boolean;
+  /** ยกเลิกขั้นตอน (ย้อนกลับ): ผู้ส่งเองหรือผู้มีสิทธิ์อนุมัติ — server ตรวจสิทธิ์จริงอีกครั้ง */
+  canRevert: boolean;
   onSubmitted: () => void;
+}
+
+/** ยกเลิกขั้นตอนที่ส่ง/อนุมัติแล้ว เพื่อย้อนกลับมาแก้ไข — ต้องระบุเหตุผล (ลง audit + แจ้ง LINE) */
+function RevertPanel({ projectId, stepCode, status, onDone }: { projectId: number; stepCode: string; status: string; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function revert() {
+    if (reason.trim().length < 3) { setError("กรุณาระบุเหตุผล (อย่างน้อย 3 ตัวอักษร)"); return; }
+    setBusy(true); setError(null);
+    try {
+      await api(`/api/projects/${projectId}/steps/${stepCode}/revert`, { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? [err.message, ...err.violations.map((v) => v.message)].join(" — ") : "ยกเลิกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <p className="revert-hint">
+        <button type="button" className="link" onClick={() => setOpen(true)}>↩ ยกเลิกขั้นตอนนี้เพื่อย้อนกลับไปแก้ไข</button>
+        <small className="muted"> ({status === "APPROVED" ? "อนุมัติแล้ว — เฉพาะผู้มีสิทธิ์อนุมัติ" : "ส่งพิจารณาแล้ว — ผู้ส่งเองหรือผู้มีสิทธิ์อนุมัติ"})</small>
+      </p>
+    );
+  }
+  return (
+    <div className="decision revert">
+      <h4>ยกเลิกขั้นตอน (ย้อนกลับไปแก้ไข)</h4>
+      <p className="muted small">ข้อมูลที่กรอกไว้จะยังอยู่ สถานะกลับเป็น "กำลังดำเนินการ" และขั้นตอนถัดไปต้องยังไม่ส่งพิจารณา · บันทึกใน Audit Log และแจ้งกลุ่ม LINE</p>
+      {error && <p role="alert" className="banner-error">{error}</p>}
+      <div className={`field ${error && reason.trim().length < 3 ? "has-error" : ""}`}>
+        <label htmlFor="revert-reason">เหตุผลที่ยกเลิก</label>
+        <textarea id="revert-reason" rows={2} maxLength={1000} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </div>
+      <div className="form-actions">
+        <button type="button" className="ghost" disabled={busy} onClick={() => setOpen(false)}>ไม่ยกเลิก</button>
+        <button type="button" className="danger" disabled={busy} onClick={() => void revert()}>{busy ? "กำลังยกเลิก…" : "ยืนยันยกเลิกขั้นตอน"}</button>
+      </div>
+    </div>
+  );
 }
 
 /** อนุมัติ / ส่งกลับแก้ไข — ผู้เสนอรายการอนุมัติของตนเองไม่ได้ (SoD ตรวจที่ server) · ส่งกลับต้องระบุเหตุผล */
@@ -63,7 +110,7 @@ function DecisionPanel({ projectId, stepCode, onDone }: { projectId: number; ste
 interface Person { personnel_id: number; full_name_th: string; position_th: string }
 interface VendorHit { vendor_id: number; tax_id: string; name_th: string }
 
-export function DynamicStepForm({ projectId, stepCode, canApprove, onSubmitted }: Props) {
+export function DynamicStepForm({ projectId, stepCode, canApprove, canRevert, onSubmitted }: Props) {
   const [form, setForm] = useState<StepFormResponse | null>(null);
   const [values, setValues] = useState<FormValues>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -161,6 +208,9 @@ export function DynamicStepForm({ projectId, stepCode, canApprove, onSubmitted }
       {form.step.status === "SUBMITTED" && (canApprove
         ? <DecisionPanel projectId={projectId} stepCode={stepCode} onDone={onSubmitted} />
         : <p className="muted small">ส่งพิจารณาแล้ว — รอหัวหน้าเจ้าหน้าที่หรือผู้มีอำนาจอนุมัติ</p>)}
+      {canRevert && (form.step.status === "SUBMITTED" || form.step.status === "APPROVED") && stepCode !== "CREATE_PROJECT" && (
+        <RevertPanel projectId={projectId} stepCode={stepCode} status={form.step.status} onDone={onSubmitted} />
+      )}
     </form>
   );
 }

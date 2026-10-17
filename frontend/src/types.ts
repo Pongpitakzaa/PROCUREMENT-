@@ -340,3 +340,14 @@ export interface Me {
   permissions: string[];
   profile: MyProfile;
 }
+
+/** ไฟล์แนบ PDF ของขั้นตอน */
+export interface StepAttachment {
+  attachment_id: number;
+  file_name: string;
+  size_bytes: number;
+  sha256: string;
+  uploaded_by: string;
+  uploaded_by_id: number;
+  uploaded_at: string;
+}

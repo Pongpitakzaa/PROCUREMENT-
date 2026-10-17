@@ -43,6 +43,7 @@ def export_document(project_id: int, step_code: str, request: Request, db: DB, b
     result = export_step_document(db, project, ps.step, fmt, user.user_id)
     write_audit(db, action="EXPORT", user_id=user.user_id, request=request, entity_table="generated_documents",
                 entity_id=result.document_id, new={"step": step_code, "format": fmt, "sha256": result.sha256})
+    db.commit()   # commit ก่อน background task (ดูหมายเหตุใน projects.submit_step)
     # แจ้งกลุ่ม LINE ว่าสร้างเอกสารของขั้นตอนนี้แล้ว (ไม่แนบไฟล์ — ผู้ใช้กดแชร์ลิงก์เองได้จากหน้าโครงการ)
     background.add_task(line_service.notify_step_change, project_id, step_code, "DOCUMENT",
                         user.personnel.full_name_th, user.user_id, detail=f"ไฟล์ {fmt.upper()}")

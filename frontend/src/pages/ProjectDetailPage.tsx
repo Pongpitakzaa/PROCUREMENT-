@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { DynamicStepForm } from "../components/DynamicStepForm";
+import { StepAttachments } from "../components/StepAttachments";
 import { StatusBadge } from "../components/StatusBadge";
 import { WorkflowStepper } from "../components/WorkflowStepper";
 import type { ProjectDetail } from "../types";
@@ -8,11 +9,13 @@ import type { ProjectDetail } from "../types";
 interface Props {
   projectId: number;
   canApprove: boolean;
+  canSubmit: boolean;
   canShareLine: boolean;
+  myUserId: number | null;
   onBack: () => void;
 }
 
-export function ProjectDetailPage({ projectId, canApprove, canShareLine, onBack }: Props) {
+export function ProjectDetailPage({ projectId, canApprove, canSubmit, canShareLine, myUserId, onBack }: Props) {
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activeStep, setActiveStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +54,19 @@ export function ProjectDetailPage({ projectId, canApprove, canShareLine, onBack 
                              onSelect={setActiveStep} onError={setError}
                              onNotice={(m) => { setError(null); setNotice(m); }} />
             {activeStep ? (
-              <DynamicStepForm
-                // row_version เปลี่ยนหลังบันทึก → remount เพื่อโหลดสถานะใหม่ (ฟอร์มถูกล็อก)
-                key={`${activeStep}-${project.row_version}`}
-                projectId={project.project_id}
-                stepCode={activeStep}
-                canApprove={canApprove}
-                onSubmitted={load}
-              />
+              <div className="step-panel">
+                <DynamicStepForm
+                  // row_version เปลี่ยนหลังบันทึก → remount เพื่อโหลดสถานะใหม่ (ฟอร์มถูกล็อก)
+                  key={`${activeStep}-${project.row_version}`}
+                  projectId={project.project_id}
+                  stepCode={activeStep}
+                  canApprove={canApprove}
+                  canRevert={canApprove || canSubmit}
+                  onSubmitted={load}
+                />
+                <StepAttachments key={`att-${activeStep}`} projectId={project.project_id} stepCode={activeStep}
+                                 canUpload={canSubmit || canApprove} canApprove={canApprove} myUserId={myUserId} />
+              </div>
             ) : (
               <div className="card empty">เลือกขั้นตอนทางซ้ายเพื่อกรอกข้อมูลหรือดูรายละเอียด</div>
             )}

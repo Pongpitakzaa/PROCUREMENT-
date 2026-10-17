@@ -7,13 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, like_pattern
-from app.core.security import Perm, require
+from app.core.security import Perm, permissions_of, require, require_any
 from app.models import (Department, MethodJustification, ProcurementMethod, Project, ProjectItem, ProjectStep, User,
                         WorkflowStep)
 from app.rules import procurement_rules as pr
 from app.rules.step_forms import form_for
 from app.rules.validators import clean_text
-from app.schemas import ProjectCreate, StepDecisionIn, StepSubmitIn
+from app.schemas import ProjectCreate, StepDecisionIn, StepRevertIn, StepSubmitIn
 from app.services import line_service
 from app.services import workflow_service as wf
 from app.services.audit_service import write_audit
@@ -132,6 +132,24 @@ def create_project(body: ProjectCreate, request: Request, db: DB, background: Ba
     return {"project_id": project.project_id, "warnings": _violations_out(warnings)}
 
 
+@router.post("/projects/{project_id}/steps/{step_code}/revert")
+def revert_step(project_id: int, step_code: str, body: StepRevertIn, request: Request, db: DB,
+                background: BackgroundTasks, user: Annotated[User, Depends(require_any(Perm.STEP_SUBMIT, Perm.STEP_APPROVE))]) -> dict:
+    """ยกเลิกขั้นตอนที่ส่ง/อนุมัติแล้ว เพื่อย้อนกลับไปแก้ไข — ต้องระบุเหตุผล บันทึก audit และแจ้ง LINE."""
+    p = get_project(db, project_id)
+    can_approve = Perm.STEP_APPROVE in permissions_of(user.role_codes)
+    old_status = next((s.status for s in db.scalars(select(ProjectStep).where(ProjectStep.project_id == project_id))
+                       if s.step.code == step_code), None)
+    ps = wf.revert_step(db, p, step_code, user, can_approve)
+    write_audit(db, action="STEP_REVERT", user_id=user.user_id, request=request, entity_table="project_steps",
+                entity_id=f"{project_id}:{step_code}", old={"status": old_status},
+                new={"status": ps.status, "reason": body.reason, "project_status": p.status})
+    db.commit()
+    background.add_task(line_service.notify_step_change, project_id, step_code, "REVERTED",
+                        user.personnel.full_name_th, user.user_id, detail=f"เหตุผล: {body.reason}")
+    return {"status": ps.status, "project_status": p.status, "row_version": p.row_version}
+
+
 @router.get("/departments")
 def list_departments(db: DB, _: Annotated[User, Depends(require(Perm.PROJECT_READ))]) -> list[dict]:
     return [{"department_id": d.department_id, "code": d.code, "name_th": d.name_th}
@@ -239,8 +257,8 @@ def submit_step(project_id: int, step_code: str, body: StepSubmitIn, request: Re
     p.updated_at = datetime.now(UTC)  # แตะ row → row_version +1 (optimistic lock) เมื่อ flush
     write_audit(db, action="STEP_SUBMIT", user_id=user.user_id, request=request, entity_table="project_steps",
                 entity_id=f"{project_id}:{step_code}", new=ps.step_data)
-    db.flush()
-    # แจ้งกลุ่ม LINE หลัง commit (background) — LINE ล่มไม่ทำให้การบันทึกล้มเหลว
+    db.commit()   # commit ก่อนตั้ง background task: FastAPI รัน background ก่อน get_db commit และ LINE retry อาจใช้เวลาหลายวินาที
+    # แจ้งกลุ่ม LINE (background) — LINE ล่มไม่ทำให้การบันทึกล้มเหลว
     background.add_task(line_service.notify_step_change, project_id, step_code, ps.status,
                         user.personnel.full_name_th, user.user_id)
     return {"status": ps.status, "row_version": p.row_version}
@@ -255,6 +273,7 @@ def decide_step(project_id: int, step_code: str, body: StepDecisionIn, request: 
     write_audit(db, action="STEP_APPROVE" if body.approve else "STEP_REJECT", user_id=user.user_id,
                 request=request, entity_table="project_steps", entity_id=f"{project_id}:{step_code}",
                 new={"comment": body.comment, "self_approval": self_approval})
+    db.commit()
     background.add_task(line_service.notify_step_change, project_id, step_code, ps.status,
                         user.personnel.full_name_th, user.user_id)
     return {"status": ps.status, "project_status": p.status}

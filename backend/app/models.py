@@ -284,6 +284,22 @@ class GeneratedDocument(Base):
     generated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
 
 
+class StepAttachment(Base):
+    __tablename__ = "step_attachments"
+    attachment_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.project_id", ondelete="CASCADE"))
+    step_id: Mapped[int] = mapped_column(ForeignKey("workflow_steps.step_id"))
+    file_name: Mapped[str] = mapped_column(String(255))
+    size_bytes: Mapped[int]
+    sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[bytes] = mapped_column(BYTEA, deferred=True)   # โหลดเฉพาะตอนเปิดดู
+    uploaded_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"))
+    uploaded_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+
+    uploader: Mapped["User"] = relationship(lazy="joined")
+    step: Mapped[WorkflowStep] = relationship(lazy="joined")
+
+
 class NotificationChannel(Base):
     __tablename__ = "notification_channels"
     channel_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
