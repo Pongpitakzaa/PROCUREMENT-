@@ -134,6 +134,15 @@ Username = Annotated[str, StringConstraints(min_length=3, max_length=60, pattern
 RoleCode = Literal["ADMIN", "PROCUREMENT_OFFICER", "HEAD_OF_PROCUREMENT", "EXECUTIVE", "AUDITOR"]
 
 
+class ProfileUpdate(StrictModel):
+    """ผู้ใช้แก้ไขข้อมูลส่วนตัวของตนเอง — ส่งเฉพาะช่องที่เปลี่ยน · เลขบัตร/หน่วยงาน/บทบาท แก้เองไม่ได้ (ผู้ดูแลเท่านั้น)."""
+    title_th: Annotated[str, StringConstraints(min_length=1, max_length=50)] | None = None
+    first_name_th: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    last_name_th: Annotated[str, StringConstraints(min_length=1, max_length=100)] | None = None
+    position_th: Annotated[str, StringConstraints(min_length=1, max_length=150)] | None = None
+    employment_type: Literal["CIVIL_SERVANT", "GOV_EMPLOYEE", "PERMANENT_EMPLOYEE", "STATE_OFFICIAL", "OTHER"] | None = None
+
+
 class PersonnelCreate(StrictModel):
     department_id: Annotated[int, Field(gt=0)]
     title_th: Annotated[str, StringConstraints(min_length=1, max_length=50)]

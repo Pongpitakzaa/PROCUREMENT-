@@ -321,3 +321,22 @@ export interface RoleInfo {
   description_th: string;
   permissions: string[];
 }
+
+/** ข้อมูลส่วนตัวของผู้ใช้ที่เข้าสู่ระบบ (GET /api/auth/me) */
+export interface MyProfile {
+  title_th: string;
+  first_name_th: string;
+  last_name_th: string;
+  position_th: string;
+  employment_type: "CIVIL_SERVANT" | "GOV_EMPLOYEE" | "PERMANENT_EMPLOYEE" | "STATE_OFFICIAL" | "OTHER";
+  department_name_th: string;
+}
+
+export interface Me {
+  user_id: number;
+  username: string;
+  full_name_th: string;
+  roles: string[];
+  permissions: string[];
+  profile: MyProfile;
+}

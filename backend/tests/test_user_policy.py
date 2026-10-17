@@ -1,4 +1,5 @@
 from app.core.security import generate_temp_password, password_problems, role_combination_problems
+from tests.test_api_flow import client  # noqa: F401  (fixture client: ฐานข้อมูลทดสอบต่อโมดูล)
 
 
 def test_password_policy():
@@ -28,3 +29,26 @@ def test_full_name_spacing_for_rank_abbreviations():
     assert Personnel(title_th="นาย", first_name_th="สมชาย", last_name_th="ใจดี").full_name_th == "นายสมชาย ใจดี"
     assert Personnel(title_th="พ.อ.อ.", first_name_th="สมชาย", last_name_th="ใจดี").full_name_th == "พ.อ.อ. สมชาย ใจดี"
     assert Personnel(title_th="น.อ.", first_name_th="สมหญิง", last_name_th="รักงาน").full_name_th == "น.อ. สมหญิง รักงาน"
+
+
+def test_user_edits_own_profile(client):
+    """ผู้ใช้แก้คำนำหน้า/ชื่อ/นามสกุล/ตำแหน่ง/ประเภทบุคลากรของตนเองได้ · ช่องอื่นถูกปฏิเสธ · บันทึก audit."""
+    from tests.test_api_flow import login
+    officer, admin = login(client, "officer"), login(client, "admin")
+    me = client.get("/api/auth/me", headers=officer).json()
+    assert me["profile"]["title_th"] == "นาย" and me["profile"]["department_name_th"]
+    r = client.patch("/api/auth/me/profile", headers=officer,
+                     json={"title_th": "พ.อ.อ.", "position_th": "เจ้าหน้าที่พัสดุอาวุโส", "employment_type": "GOV_EMPLOYEE"})
+    assert r.status_code == 200, r.text
+    assert r.json()["full_name_th"] == "พ.อ.อ. สมชาย ใจดี" and r.json()["profile"]["employment_type"] == "GOV_EMPLOYEE"
+    assert client.get("/api/auth/me", headers=officer).json()["profile"]["position_th"] == "เจ้าหน้าที่พัสดุอาวุโส"
+    assert client.patch("/api/auth/me/profile", headers=officer, json={}).status_code == 422
+    assert client.patch("/api/auth/me/profile", headers=officer, json={"citizen_id": "1234567890123"}).status_code == 422
+    assert client.patch("/api/auth/me/profile", headers=officer, json={"department_id": 2}).status_code == 422
+    assert client.patch("/api/auth/me/profile", headers=officer, json={"first_name_th": ""}).status_code == 422
+    rows = client.get("/api/admin/audit", headers=admin, params={"limit": 5}).json()
+    rows = rows.get("items", []) if isinstance(rows, dict) else rows
+    assert any(a.get("entity_table") == "personnel" and (a.get("new_values") or {}).get("via") == "self-profile" for a in rows)
+    # คืนค่าเดิมให้เทสต์อื่น
+    assert client.patch("/api/auth/me/profile", headers=officer,
+                        json={"title_th": "นาย", "position_th": "นักวิชาการพัสดุ", "employment_type": "CIVIL_SERVANT"}).status_code == 200

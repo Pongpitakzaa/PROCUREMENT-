@@ -29,6 +29,7 @@ class Personnel(Base):
     __tablename__ = "personnel"
     personnel_id: Mapped[int] = mapped_column(primary_key=True)
     department_id: Mapped[int] = mapped_column(ForeignKey("departments.department_id"))
+    department: Mapped["Department"] = relationship(lazy="joined")
     title_th: Mapped[str] = mapped_column(String(50))
     first_name_th: Mapped[str] = mapped_column(String(100))
     last_name_th: Mapped[str] = mapped_column(String(100))
