@@ -9,7 +9,8 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import CurrentUser, create_access_token, permissions_of, verify_password
 from app.models import User
-from app.schemas import LoginIn, TokenOut
+from app.rules.validators import clean_text
+from app.schemas import LoginIn, ProfileUpdate, TokenOut
 from app.services.audit_service import write_audit
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -45,12 +46,40 @@ def login(body: LoginIn, request: Request, db: DB) -> TokenOut:
     return TokenOut(access_token=create_access_token(user), expires_in=s.access_token_minutes * 60)
 
 
-@router.get("/me")
-def me(user: CurrentUser) -> dict:
+PROFILE_FIELDS = ("title_th", "first_name_th", "last_name_th", "position_th", "employment_type")
+
+
+def _me_payload(user: User) -> dict:
+    p = user.personnel
     return {
         "user_id": user.user_id,
         "username": user.username,
-        "full_name_th": user.personnel.full_name_th,
+        "full_name_th": p.full_name_th,
         "roles": sorted(user.role_codes),
         "permissions": sorted(permissions_of(user.role_codes)),
+        "profile": {f: getattr(p, f) for f in PROFILE_FIELDS} | {"department_name_th": p.department.name_th},
     }
+
+
+@router.get("/me")
+def me(user: CurrentUser) -> dict:
+    return _me_payload(user)
+
+
+@router.patch("/me/profile")
+def update_profile(body: ProfileUpdate, request: Request, db: DB, user: CurrentUser) -> dict:
+    """แก้ไขคำนำหน้า ชื่อ นามสกุล ตำแหน่ง ประเภทบุคลากรของตนเอง — บันทึก audit ค่าเก่า/ใหม่."""
+    changes = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if not changes:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "ไม่มีข้อมูลที่เปลี่ยน")
+    p = user.personnel
+    old = {k: getattr(p, k) for k in changes}
+    for k, v in changes.items():
+        setattr(p, k, clean_text(v) if k != "employment_type" else v)
+    new = {k: getattr(p, k) for k in changes}
+    if new != old:
+        write_audit(db, action="UPDATE", user_id=user.user_id, request=request, entity_table="personnel",
+                    entity_id=p.personnel_id, old=old, new=new | {"via": "self-profile"})
+    db.commit()
+    db.refresh(p)
+    return _me_payload(user)

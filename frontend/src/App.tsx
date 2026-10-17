@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { initialOf } from "./titles";
 import { ApiError, api, isLoggedIn, login, logout } from "./api";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
+import { EditProfileDialog } from "./components/EditProfileDialog";
 import { DemoAccounts, DemoBanner } from "./components/DemoNotice";
 import { AppStatusBar, InstallButton } from "./components/MobileApp";
 import { DEMO_PASSWORD, IS_DEMO } from "./demo/accounts";
@@ -11,9 +12,8 @@ import { ProjectCreatePage } from "./pages/ProjectCreatePage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
 import { VendorsPage } from "./pages/VendorsPage";
-import type { MethodInfo } from "./types";
+import type { Me, MethodInfo } from "./types";
 
-interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[] }
 
 type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" } | { name: "admin"; tab?: "users" | "line" };
 
@@ -33,6 +33,7 @@ export function App() {
   });
   const [error, setError] = useState<string | null>(null);
   const [changingPw, setChangingPw] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
   const menuRef = useRef<HTMLDetailsElement>(null);
   const closeMenu = () => menuRef.current?.removeAttribute("open");
 
@@ -137,6 +138,7 @@ export function App() {
             </summary>
             <div className="menu card" role="menu">
               <div className="menu-head muted small">{me.full_name_th} · {me.username}</div>
+              <button type="button" role="menuitem" onClick={() => { closeMenu(); setEditingProfile(true); }}>แก้ไขข้อมูลส่วนตัว</button>
               <button type="button" role="menuitem" onClick={() => { closeMenu(); setChangingPw(true); }}>เปลี่ยนรหัสผ่าน</button>
               <InstallButton role="menuitem" onBeforeOpen={closeMenu} />
               <button type="button" role="menuitem" onClick={() => { closeMenu(); logout(); setAuthed(false); setMe(null); }}>
@@ -147,6 +149,12 @@ export function App() {
         )}
       </header>
 
+      {editingProfile && me && (
+        <EditProfileDialog me={me} onClose={(updated) => {
+          setEditingProfile(false);
+          if (updated) { setMe(updated); setNotice("บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว"); }
+        }} />
+      )}
       {changingPw && me && (
         <ChangePasswordDialog username={me.username} onClose={(changed) => {
           setChangingPw(false);

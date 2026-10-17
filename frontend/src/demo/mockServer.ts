@@ -18,7 +18,8 @@ import { isValidThaiTaxId, validateForm } from "../validation";
 import { DEMO_PASSWORD, DEMO_STORAGE_KEY } from "./accounts";
 import raw from "./snapshot.json";
 
-interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[] }
+interface MyProfile { title_th: string; first_name_th: string; last_name_th: string; position_th: string; employment_type: string; department_name_th: string }
+interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[]; profile?: MyProfile }
 interface Snapshot {
   me: Record<string, Me>;
   methods: MethodInfo[];
@@ -98,11 +99,21 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
+const DEMO_POSITION: Record<string, string> = { officer: "นักวิชาการพัสดุ", head: "หัวหน้าเจ้าหน้าที่", director: "ผู้อำนวยการ", admin: "นักวิชาการคอมพิวเตอร์" };
+/** เดโม: แยกคำนำหน้าออกจากชื่อเต็มเพื่อให้แก้ไขข้อมูลส่วนตัวได้ (snapshot เก่าไม่มี profile) */
+function ensureProfile(me: Me): Me {
+  if (me.profile) return me;
+  const m = /^(นางสาว|นาง|นาย|[ก-ฮ]\.(?:[ก-ฮ]\.)+)\s*(\S+)\s+(.+)$/.exec(me.full_name_th);
+  me.profile = { title_th: m?.[1] ?? "นาย", first_name_th: m?.[2] ?? me.full_name_th, last_name_th: m?.[3] ?? "",
+                 position_th: DEMO_POSITION[me.username] ?? "เจ้าหน้าที่", employment_type: "CIVIL_SERVANT",
+                 department_name_th: "กองพัสดุ สำนักงานตัวอย่าง" };
+  return me;
+}
 function userOf(headers: Headers): Me {
   const m = /^Bearer demo\.(\w+)$/.exec(headers.get("authorization") ?? "");
   const me = m ? db.me[m[1]!] : undefined;
   if (!me) throw new HttpError(401, "กรุณาเข้าสู่ระบบ");
-  return me;
+  return ensureProfile(me);
 }
 function need(me: Me, ...perms: string[]) {
   if (!perms.some((p) => me.permissions.includes(p))) throw new HttpError(403, "ไม่มีสิทธิ์ดำเนินการนี้");
@@ -461,6 +472,18 @@ const routes: Route[] = [
     return { access_token: `demo.${u.username}`, token_type: "bearer" };
   }],
   ["GET", /^\/api\/auth\/me$/, ({ me }) => me()],
+  ["PATCH", /^\/api\/auth\/me\/profile$/, ({ me, body }) => {
+    const u = me(); const p = u.profile!;
+    const allowed = ["title_th", "first_name_th", "last_name_th", "position_th", "employment_type"] as const;
+    const changes = Object.fromEntries(Object.entries(body).filter(([k]) => (allowed as readonly string[]).includes(k)));
+    if (!Object.keys(changes).length) throw new HttpError(422, "ไม่มีข้อมูลที่เปลี่ยน");
+    for (const k of allowed) if (typeof changes[k] === "string" && !String(changes[k]).trim()) throw new HttpError(422, "กรอกข้อมูลให้ครบ");
+    Object.assign(p, changes);
+    u.full_name_th = `${p.title_th}${p.title_th.endsWith(".") ? " " : ""}${p.first_name_th} ${p.last_name_th}`;
+    audit(u, "UPDATE", "personnel", u.user_id, { ...changes, via: "self-profile" });
+    persist();
+    return u;
+  }],
   ["POST", /^\/api\/auth\/change-password$/, () => { throw new HttpError(400, `${DEMO_SERVER_ONLY} (บัญชีสาธิตใช้รหัสผ่านร่วมกัน)`); }],
 
   ["GET", /^\/api\/methods$/, ({ me }) => (me(), db.methods)],
