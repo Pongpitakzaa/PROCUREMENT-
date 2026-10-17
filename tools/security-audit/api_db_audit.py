@@ -149,12 +149,18 @@ check(A, "ข้อมูลถูกต้องครบ", "บันทึก
 # C. ความปลอดภัย / สิทธิ์
 # =============================================================================
 decide = f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/decision"
-r = c.post(decide, headers=head, json={"approve": True})
-check(C, "ผู้เสนออนุมัติรายการของตนเอง (SoD)", "SOD_VIOLATION", codes(r) == ["SOD_VIOLATION"], f"HTTP {r.status_code} {codes(r)}")
 r = c.post(decide, headers=officer, json={"approve": True})
 check(C, "เจ้าหน้าที่พัสดุกดอนุมัติ", "403", r.status_code == 403, f"HTTP {r.status_code}")
+# นโยบายเริ่มต้น (PROC_SELF_APPROVAL_ROLES): หัวหน้าเจ้าหน้าที่อนุมัติรายการที่ตนเองส่งได้ แต่ต้องมีหลักฐาน self_approval ใน audit
+r = c.post(decide, headers=head, json={"approve": True})
+check(C, "หัวหน้าอนุมัติรายการที่ตนเองส่ง (นโยบายเริ่มต้นอนุญาต)", "200 APPROVED", r.status_code == 200 and r.json().get("status") == "APPROVED",
+      f"HTTP {r.status_code} {r.json().get('status')}")
+rows = c.get("/api/admin/audit", headers=admin, params={"limit": 10}).json().get("items", [])
+flagged = next((a for a in rows if a.get("action") == "STEP_APPROVE" and (a.get("new_values") or {}).get("self_approval") is True), None)
+check(C, "audit log ระบุ self_approval=true เมื่ออนุมัติรายการตนเอง", "มี flag", flagged is not None,
+      f"entity={flagged['entity_id']}" if flagged else "ไม่พบแถว STEP_APPROVE ที่มี self_approval=true")
 r = c.post(decide, headers=director, json={"approve": True})
-check(C, "ผู้บริหาร (คนละคน) อนุมัติ", "200", r.status_code == 200, f"HTTP {r.status_code} {r.json().get('status')}")
+check(C, "อนุมัติซ้ำรายการที่อนุมัติแล้ว", "STEP_NOT_SUBMITTED", codes(r) == ["STEP_NOT_SUBMITTED"], f"HTTP {r.status_code} {codes(r)}")
 r = c.post("/api/projects", headers=officer, json={**project(project_code=f"VAL-{STAMP}-B"), "status": "COMPLETED"})
 check(C, "ส่ง status=COMPLETED ตอนสร้างโครงการ", "422", r.status_code == 422, f"HTTP {r.status_code}")
 
@@ -285,8 +291,6 @@ msg = db_expect_error("""
                 SELECT %(p)s, committee_type_id FROM committee_types WHERE code='SELECTION' RETURNING committee_id)
     INSERT INTO committee_members SELECT committee_id, %(per)s, 'CHAIR', 1 FROM c1""", {"p": pid, "per": people[0]})
 check(B, "กรรมการตรวจรับเป็นกรรมการคัดเลือกในโครงการเดียวกัน", "trigger ปฏิเสธ", "ไม่ได้" in msg, msg)
-msg = db_expect_error("UPDATE project_steps SET approved_by = submitted_by WHERE project_id = %s AND submitted_by IS NOT NULL", (pid,))
-check(B, "ผู้อนุมัติ = ผู้เสนอ (แก้ตรง DB)", "CHECK constraint ปฏิเสธ", "check constraint" in msg, msg[:90])
 msg = db_expect_error("UPDATE audit_logs SET action = 'LOGIN' WHERE audit_id = (SELECT max(audit_id) FROM audit_logs)")
 check(B, "แก้ไข audit log", "trigger ปฏิเสธ", "append-only" in msg, msg)
 msg = db_expect_error("DELETE FROM audit_logs")
