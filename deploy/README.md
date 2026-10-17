@@ -175,6 +175,7 @@ sudo ./install.sh --no-build
 | สถานะ | `docker compose ps` |
 | ดู log | `docker compose logs -f api` (log หมุนเวียนอัตโนมัติ 10 ไฟล์ × 20 MB ต่อบริการ) |
 | ผู้ดูแลลืมรหัสผ่าน / ถูกล็อก | `docker compose exec api python -m app.cli reset-password itadmin` |
+| รีเซ็ตโดยไม่มี shell (เช่น Render แผนฟรี) | ตั้ง `PROC_RESET_PASSWORD_FOR=<ชื่อผู้ใช้>` (และ `PROC_RESET_PASSWORD_TO` ถ้าจะกำหนดเอง) แล้วเริ่มระบบใหม่ จากนั้นลบค่าออก — ดู [RENDER.md](RENDER.md) |
 | เพิ่มหน่วยงาน | `docker compose exec api python -m app.cli add-department CODE "ชื่อ"` |
 | รีสตาร์ต | `docker compose restart` (ใช้ค่าเดิมของคอนเทนเนอร์ ปลอดภัย) |
 | หยุดระบบ | `docker compose down` (ข้อมูลอยู่ใน `data/` ไม่หาย) |

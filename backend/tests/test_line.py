@@ -154,3 +154,29 @@ def test_line_secrets_tolerate_pasted_whitespace_and_quotes(monkeypatch):
     monkeypatch.setenv("PROC_LINE_CHANNEL_SECRET", '""')
     s = Settings()
     assert s.line_channel_access_token is None and s.line_channel_secret is None
+
+
+def test_reset_password_from_env(client, monkeypatch):
+    """PROC_RESET_PASSWORD_FOR/TO: ตั้งรหัสใหม่ตอน init-db (ไม่มี shell บน Render แผนฟรี) · รหัสเดิมใช้ไม่ได้ทันที."""
+    from app.cli import _reset_password_from_env
+    from app.core.config import get_settings
+    from app.core.database import SessionLocal
+    s = get_settings()
+    secret = type(s.jwt_secret)
+    with SessionLocal() as db, db.begin():
+        monkeypatch.setattr(s, "reset_password_for", "nobody")
+        assert "ไม่พบผู้ใช้" in _reset_password_from_env(db)
+        monkeypatch.setattr(s, "reset_password_for", "officer")
+        monkeypatch.setattr(s, "reset_password_to", secret("short"))
+        assert "รีเซ็ตรหัสผ่านไม่ได้" in _reset_password_from_env(db)
+        monkeypatch.setattr(s, "reset_password_to", secret("NewPass-2570-xyz"))
+        msg = _reset_password_from_env(db)
+    assert "officer" in msg and "ลบค่า PROC_RESET_PASSWORD_FOR" in msg and "NewPass-2570-xyz" not in msg
+    assert client.post("/api/auth/login", json={"username": "officer", "password": "Demo@1234"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "officer", "password": "NewPass-2570-xyz"}).status_code == 200
+    with SessionLocal() as db, db.begin():   # คืนรหัสเดิม (สั้นกว่านโยบาย) ให้เทสต์อื่นในโมดูลโดยตรง
+        from sqlalchemy import select
+        from app.core.security import hash_password
+        from app.models import User
+        db.scalar(select(User).where(User.username == "officer")).password_hash = hash_password("Demo@1234")
+    assert client.post("/api/auth/login", json={"username": "officer", "password": "Demo@1234"}).status_code == 200

@@ -14,7 +14,7 @@ import type { MethodInfo } from "./types";
 
 interface Me { user_id: number; username: string; full_name_th: string; roles: string[]; permissions: string[] }
 
-type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" } | { name: "admin" };
+type View = { name: "list" } | { name: "create" } | { name: "detail"; projectId: number } | { name: "dashboard" } | { name: "vendors" } | { name: "admin"; tab?: "users" | "line" };
 
 const ROLE_TH: Record<string, string> = {
   ADMIN: "ผู้ดูแลระบบ", PROCUREMENT_OFFICER: "เจ้าหน้าที่พัสดุ", HEAD_OF_PROCUREMENT: "หัวหน้าเจ้าหน้าที่",
@@ -157,7 +157,8 @@ export function App() {
         {view.name === "list" && (
           <ProjectListPage methods={methods} canCreate={canCreate}
                            onOpen={(projectId) => setView({ name: "detail", projectId })}
-                           onCreate={() => setView({ name: "create" })} />
+                           onCreate={() => setView({ name: "create" })}
+                           onManageUsers={can("user:manage") ? () => setView({ name: "admin", tab: "users" }) : undefined} />
         )}
         {view.name === "create" && (
           <ProjectCreatePage methods={methods} onCancel={toList}
@@ -165,7 +166,7 @@ export function App() {
         )}
         {view.name === "detail" && <ProjectDetailPage projectId={view.projectId} canApprove={can("step:approve")} canShareLine={can("line:send")} onBack={toList} />}
         {view.name === "dashboard" && <DashboardPage />}
-        {view.name === "admin" && me && <AdminPage permissions={me.permissions} userId={me.user_id} />}
+        {view.name === "admin" && me && <AdminPage permissions={me.permissions} userId={me.user_id} initialTab={view.tab} />}
         {view.name === "vendors" && (
           <VendorsPage canWrite={can("vendor:write")} canSanction={can("vendor:sanction")}
                        onOpenProject={(projectId) => setView({ name: "detail", projectId })} />
