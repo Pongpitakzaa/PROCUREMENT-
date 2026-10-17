@@ -276,6 +276,20 @@ CREATE TABLE generated_documents (
     generated_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- ไฟล์แนบ PDF ของแต่ละขั้นตอน (เก็บเนื้อหาในฐานข้อมูล: ไม่หายเมื่อ service เริ่มใหม่ และติดไปกับการสำรองข้อมูล)
+CREATE TABLE step_attachments (
+    attachment_id  BIGSERIAL PRIMARY KEY,
+    project_id     INT          NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+    step_id        INT          NOT NULL REFERENCES workflow_steps(step_id),
+    file_name      VARCHAR(255) NOT NULL,
+    size_bytes     INT          NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 10485760),
+    sha256         CHAR(64)     NOT NULL,
+    content        BYTEA        NOT NULL,
+    uploaded_by    INT          NOT NULL REFERENCES users(user_id),
+    uploaded_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_step_attachments_step ON step_attachments (project_id, step_id);
+
 -- -----------------------------------------------------------------------------
 -- 7) การแจ้งเตือน LINE / สำรองข้อมูล / Audit
 -- -----------------------------------------------------------------------------

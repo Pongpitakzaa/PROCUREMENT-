@@ -315,6 +315,63 @@ function submitStep(me: Me, id: number, code: string, body: { data: Record<strin
   return { status: step.status, row_version: d.row_version };
 }
 
+function revertStep(me: Me, id: number, code: string, body: { reason?: string }) {
+  if (!me.permissions.includes("step:submit") && !me.permissions.includes("step:approve")) throw new HttpError(403, "ไม่มีสิทธิ์ดำเนินการนี้");
+  if (!body.reason || body.reason.trim().length < 3) throw new HttpError(422, "กรุณาระบุเหตุผล");
+  const d = projectOf(id);
+  const idx = d.steps.findIndex((s) => s.code === code);
+  const step = d.steps[idx];
+  if (!step) throw failRules([rule("STEP_NOT_IN_WORKFLOW", "ขั้นตอนนี้ไม่อยู่ใน workflow ของโครงการ")]);
+  if (code === "CREATE_PROJECT") throw failRules([rule("STEP_NOT_REVERTIBLE", "ขั้นสร้างโครงการยกเลิกไม่ได้")]);
+  if (step.status !== "SUBMITTED" && step.status !== "APPROVED") throw failRules([rule("STEP_NOT_REVERTIBLE", "ขั้นตอนนี้ยังไม่ได้ส่งพิจารณา จึงไม่มีอะไรให้ยกเลิก")]);
+  const later = d.steps.slice(idx + 1).filter((s) => s.status === "SUBMITTED" || s.status === "APPROVED");
+  if (later.length) throw failRules([rule("LATER_STEP_DONE", `ต้องยกเลิกขั้นตอน ${later[later.length - 1]!.code} ที่อยู่ถัดไปก่อน จึงจะย้อนกลับมาขั้นนี้ได้`)]);
+  const canApprove = me.permissions.includes("step:approve");
+  if (step.status === "APPROVED" && !canApprove) throw failRules([rule("REVERT_NOT_ALLOWED", "ขั้นตอนที่อนุมัติแล้ว ยกเลิกได้เฉพาะผู้มีสิทธิ์อนุมัติ")]);
+  if (step.status === "SUBMITTED" && !canApprove && submittedBy.get(`${id}/${code}`) !== me.username) {
+    throw failRules([rule("REVERT_NOT_ALLOWED", "ยกเลิกได้เฉพาะผู้ที่ส่งพิจารณาเอง หรือผู้มีสิทธิ์อนุมัติ")]);
+  }
+  step.status = "IN_PROGRESS";
+  submittedBy.delete(`${id}/${code}`);
+  d.status = d.steps.find((s) => s.code === "AWARD_APPROVAL")?.status === "APPROVED" && code !== "AWARD_APPROVAL" ? "AWARDED" : "IN_PROGRESS";
+  d.row_version += 1;
+  audit(me, "STEP_REVERT", "project_steps", `${id}:${code}`, { reason: body.reason, project_status: d.status });
+  persist();
+  return { status: step.status, project_status: d.status, row_version: d.row_version };
+}
+
+/* ไฟล์แนบ PDF (เดโม: เก็บในหน่วยความจำของแท็บนี้ ไม่บันทึกลง localStorage เพราะขนาดไฟล์) */
+interface DemoAttachment { attachment_id: number; project_id: number; step: string; file_name: string; size_bytes: number; sha256: string; uploaded_by: string; uploaded_by_id: number; uploaded_at: string; blob: Blob }
+const demoAttachments: DemoAttachment[] = [];
+let nextAttachmentId = 1;
+export function demoAttachmentBlob(id: number): Blob | undefined { return demoAttachments.find((a) => a.attachment_id === id)?.blob; }
+function attachmentsOf(id: number, code: string) {
+  projectOf(id);
+  return demoAttachments.filter((a) => a.project_id === id && a.step === code).map(({ blob: _b, project_id: _p, step: _s, ...rest }) => rest);
+}
+function addAttachment(me: Me, id: number, code: string, body: { file?: File }) {
+  if (!me.permissions.includes("step:submit") && !me.permissions.includes("step:approve")) throw new HttpError(403, "ไม่มีสิทธิ์ดำเนินการนี้");
+  projectOf(id);
+  const f = body.file;
+  if (!(f instanceof File)) throw new HttpError(422, "ไม่พบไฟล์");
+  if (f.size > 10 * 1024 * 1024) throw new HttpError(413, "ไฟล์ใหญ่เกิน 10 MB");
+  if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") throw new HttpError(422, "รับเฉพาะไฟล์ PDF เท่านั้น");
+  const a: DemoAttachment = { attachment_id: nextAttachmentId++, project_id: id, step: code, file_name: f.name.split(/[\\/]/).pop() || "เอกสาร.pdf",
+    size_bytes: f.size, sha256: "demo", uploaded_by: me.full_name_th, uploaded_by_id: me.user_id, uploaded_at: new Date().toISOString(), blob: f };
+  demoAttachments.push(a);
+  audit(me, "ATTACHMENT_UPLOAD", "step_attachments", a.attachment_id, { step: code, file_name: a.file_name, size_bytes: a.size_bytes });
+  const { blob: _b, project_id: _p, step: _s, ...rest } = a;
+  return rest;
+}
+function deleteAttachment(me: Me, id: number) {
+  const i = demoAttachments.findIndex((a) => a.attachment_id === id);
+  if (i < 0) throw new HttpError(404, "ไม่พบไฟล์แนบ");
+  if (demoAttachments[i]!.uploaded_by_id !== me.user_id && !me.permissions.includes("step:approve")) throw new HttpError(403, "ลบได้เฉพาะผู้ที่แนบไฟล์เอง หรือผู้มีสิทธิ์อนุมัติ");
+  audit(me, "ATTACHMENT_DELETE", "step_attachments", id, { file_name: demoAttachments[i]!.file_name });
+  demoAttachments.splice(i, 1);
+  return null;
+}
+
 function decideStep(me: Me, id: number, code: string, body: { approve: boolean; comment?: string | null }) {
   need(me, "step:approve");
   const d = projectOf(id);
@@ -496,6 +553,10 @@ const routes: Route[] = [
   ["GET", /^\/api\/projects\/(\d+)$/, ({ me, m }) => (me(), projectOf(Number(m[1]))) ],
   ["GET", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/form$/, ({ me, m }) => (me(), formOf(Number(m[1]), m[2]!))],
   ["POST", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/submit$/, ({ me, m, body }) => submitStep(me(), Number(m[1]), m[2]!, body as never)],
+  ["POST", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/revert$/, ({ me, m, body }) => revertStep(me(), Number(m[1]), m[2]!, body as never)],
+  ["GET", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/attachments$/, ({ me, m }) => (me(), attachmentsOf(Number(m[1]), m[2]!))],
+  ["POST", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/attachments$/, ({ me, m, body }) => addAttachment(me(), Number(m[1]), m[2]!, body as never)],
+  ["DELETE", /^\/api\/attachments\/(\d+)$/, ({ me, m }) => deleteAttachment(me(), Number(m[1]))],
   ["POST", /^\/api\/projects\/(\d+)\/steps\/(\w+)\/decision$/, ({ me, m, body }) => decideStep(me(), Number(m[1]), m[2]!, body as never)],
   ["POST", /^\/api\/projects\/\d+\/steps\/\w+\/(export|share-line)/, ({ me }) => {
     need(me(), "document:export");
@@ -548,8 +609,17 @@ async function handle(path: string, init: RequestInit): Promise<Response> {
   let body: Record<string, unknown> = {};
   if (typeof init.body === "string") {
     try { body = JSON.parse(init.body); } catch { return json(422, { message: "รูปแบบข้อมูลไม่ถูกต้อง", violations: [] }); }
+  } else if (init.body instanceof FormData) {
+    body = Object.fromEntries(init.body.entries());   // อัปโหลดไฟล์ (เดโม: เก็บในหน่วยความจำ)
   }
   await new Promise((r) => setTimeout(r, 120));   // ให้เห็นสถานะ "กำลังบันทึก…" เหมือนเรียกเซิร์ฟเวอร์จริง
+  const att = method === "GET" ? /^\/api\/attachments\/(\d+)$/.exec(url.pathname) : null;
+  if (att) {   // เปิดดู/ดาวน์โหลด PDF: ตอบเป็นไฟล์ ไม่ใช่ JSON
+    try { userOf(headers); } catch (e) { if (e instanceof HttpError) return json(e.status, { message: e.message, violations: [] }); }
+    const blob = demoAttachmentBlob(Number(att[1]));
+    return blob ? new Response(blob, { status: 200, headers: { "content-type": "application/pdf" } })
+                : json(404, { message: "ไม่พบไฟล์แนบ", violations: [] });
+  }
   for (const [rm, re, fn] of routes) {
     const m = re.exec(url.pathname);
     if (!m || (rm !== "*" && rm !== method)) continue;

@@ -106,6 +106,41 @@ def decide_step(db: Session, project: Project, step_code: str, approve: bool, us
     return ps
 
 
+def revert_step(db: Session, project: Project, step_code: str, user: User, can_approve: bool) -> ProjectStep:
+    """ยกเลิกขั้นตอนที่ส่งพิจารณา/อนุมัติแล้ว เพื่อย้อนกลับมาแก้ไข (ข้อมูลในฟอร์มคงอยู่).
+
+    เงื่อนไข: ขั้นตอนถัดไปต้องยังไม่ส่งพิจารณา/อนุมัติ (ย้อนได้ทีละขั้นจากหลังไปหน้า) ·
+    SUBMITTED ยกเลิกได้โดยผู้ส่งเองหรือผู้มีสิทธิ์อนุมัติ · APPROVED ยกเลิกได้เฉพาะผู้มีสิทธิ์อนุมัติ ·
+    ขั้นสร้างโครงการยกเลิกไม่ได้
+    """
+    steps = _project_steps(db, project)
+    ordered = [ws.code for ws in applicable_steps(db, project)]
+    ps = steps.get(step_code)
+    if ps is None:
+        raise _fail("STEP_NOT_IN_WORKFLOW", "ขั้นตอนนี้ไม่อยู่ใน workflow ของโครงการ")
+    if step_code == "CREATE_PROJECT":
+        raise _fail("STEP_NOT_REVERTIBLE", "ขั้นสร้างโครงการยกเลิกไม่ได้")
+    if ps.status not in ("SUBMITTED", "APPROVED"):
+        raise _fail("STEP_NOT_REVERTIBLE", "ขั้นตอนนี้ยังไม่ได้ส่งพิจารณา จึงไม่มีอะไรให้ยกเลิก")
+    later_done = [c for c in ordered[ordered.index(step_code) + 1:] if steps[c].status in ("SUBMITTED", "APPROVED")]
+    if later_done:
+        raise _fail("LATER_STEP_DONE", f"ต้องยกเลิกขั้นตอน {later_done[-1]} ที่อยู่ถัดไปก่อน จึงจะย้อนกลับมาขั้นนี้ได้")
+    if ps.status == "APPROVED" and not can_approve:
+        raise _fail("REVERT_NOT_ALLOWED", "ขั้นตอนที่อนุมัติแล้ว ยกเลิกได้เฉพาะผู้มีสิทธิ์อนุมัติ")
+    if ps.status == "SUBMITTED" and not can_approve and ps.submitted_by != user.user_id:
+        raise _fail("REVERT_NOT_ALLOWED", "ยกเลิกได้เฉพาะผู้ที่ส่งพิจารณาเอง หรือผู้มีสิทธิ์อนุมัติ")
+
+    ps.status = "IN_PROGRESS"
+    ps.approved_by = ps.approved_at = None
+    ps.submitted_by = ps.submitted_at = None
+    # สถานะโครงการคำนวณใหม่จากขั้นตอนที่ยังอนุมัติอยู่ (ขั้นถัดไปไม่มีที่เสร็จแล้ว จึงไม่ใช่ CONTRACTED/COMPLETED)
+    project.status = "AWARDED" if steps.get("AWARD_APPROVAL") and steps["AWARD_APPROVAL"].status == "APPROVED" \
+        and step_code != "AWARD_APPROVAL" else "IN_PROGRESS"
+    project.updated_at = datetime.now(UTC)   # ทำให้ row_version เพิ่ม (optimistic lock) → หน้าเว็บโหลดสถานะใหม่
+    db.flush()
+    return ps
+
+
 # ---------------------------------------------------------------------------
 # ผลข้างเคียงต่อข้อมูลหลักของแต่ละขั้นตอน
 # ---------------------------------------------------------------------------

@@ -194,6 +194,10 @@ class StepDecisionIn(StrictModel):
     comment: Annotated[str, StringConstraints(max_length=1000)] | None = None
 
 
+class StepRevertIn(StrictModel):
+    reason: Annotated[str, StringConstraints(min_length=3, max_length=1000)]   # ต้องระบุเหตุผลเสมอ (ลง audit + LINE)
+
+
 class LineShareIn(StrictModel):
     channel_id: Annotated[int, Field(gt=0)]
     document_id: Annotated[int, Field(gt=0)] | None = None
