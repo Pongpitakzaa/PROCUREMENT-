@@ -229,7 +229,7 @@ export interface TemplateRow {
   document_type_name_th: string;
   version_label: string;
   file_format: "DOCX" | "XLSX";
-  source_url: string;
+  source_url: string | null;   // ไม่บังคับ
   cgd_reference: string;
   effective_from: string;
   is_active: boolean;

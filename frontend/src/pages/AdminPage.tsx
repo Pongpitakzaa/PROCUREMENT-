@@ -245,7 +245,7 @@ function TemplatesTab({ canManage, canVerify, userId }: { canManage: boolean; ca
                   <span className="muted small">รุ่น {t.version_label} · {t.file_format} · มีผล {thDate(t.effective_from)} · {t.cgd_reference}</span>
                   <span className="muted small">
                     อัปโหลด: {t.uploaded_by ?? "—"}{t.verified_by && ` · รับรอง: ${t.verified_by}`} ·{" "}
-                    <a href={t.source_url} target="_blank" rel="noopener noreferrer">แหล่งที่มา</a> ·{" "}
+                    {t.source_url && <><a href={t.source_url} target="_blank" rel="noopener noreferrer">แหล่งที่มา</a> ·{" "}</>}
                     <button type="button" className="link inline" onClick={() => setOpen(open === t.template_id ? null : t.template_id)}>
                       ตัวแปร {t.variables.length} รายการ
                     </button>
@@ -293,7 +293,7 @@ function TemplateUpload({ types, onUploaded }: { types: { code: string; name_th:
   const problems = [
     !docType && "เลือกประเภทเอกสาร",
     !version.trim() && "กรอกรุ่น/ฉบับ",
-    url && !CGD_URL.test(url) ? "แหล่งที่มาต้องเป็น https://…gprocurement.go.th/…" : !url && "กรอกแหล่งที่มา",
+    url.trim() && !CGD_URL.test(url.trim()) && "แหล่งที่มาต้องเป็น https://…gprocurement.go.th/… (หรือเว้นว่าง)",
     ref.trim().length < 3 && "กรอกเลขหนังสือเวียน/ประกาศ",
     !file && "เลือกไฟล์ .docx หรือ .xlsx",
     file && file.size > 10 * 1024 * 1024 && "ไฟล์ใหญ่เกิน 10 MB",
@@ -306,7 +306,7 @@ function TemplateUpload({ types, onUploaded }: { types: { code: string; name_th:
     const fd = new FormData();
     fd.set("document_type_code", docType);
     fd.set("version_label", version.trim());
-    fd.set("source_url", url.trim());
+    if (url.trim()) fd.set("source_url", url.trim());
     fd.set("cgd_reference", ref.trim());
     fd.set("effective_from", from);
     fd.set("file", file!);
@@ -347,7 +347,7 @@ function TemplateUpload({ types, onUploaded }: { types: { code: string; name_th:
         </div>
       </div>
       <div className={`field ${url && !CGD_URL.test(url) ? "has-error" : ""}`}>
-        <label htmlFor="t-url">แหล่งที่มา (URL กรมบัญชีกลาง)</label>
+        <label htmlFor="t-url">แหล่งที่มา (URL กรมบัญชีกลาง) <span className="muted">— ไม่บังคับ</span></label>
         <input id="t-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.gprocurement.go.th/…" />
         {url && !CGD_URL.test(url) && <small className="error">ต้องเป็นเว็บไซต์ gprocurement.go.th เท่านั้น</small>}
       </div>

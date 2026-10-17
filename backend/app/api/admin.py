@@ -123,13 +123,14 @@ async def upload_template(
     request: Request, db: DB, user: Annotated[User, Depends(require(Perm.TEMPLATE_MANAGE))],
     document_type_code: Annotated[str, Form(pattern=r"^[A-Z_]{3,50}$")],
     version_label: Annotated[str, Form(max_length=30)],
-    source_url: Annotated[str, Form(max_length=500)],
     cgd_reference: Annotated[str, Form(min_length=3, max_length=255)],
     effective_from: Annotated[date, Form()],
     file: Annotated[UploadFile, File()],
+    source_url: Annotated[str | None, Form(max_length=500)] = None,   # ไม่บังคับ — ถ้าใส่ต้องเป็นเว็บกรมบัญชีกลาง
     xlsx_variable_schema: Annotated[str | None, Form()] = None,
 ) -> dict:
-    if not CGD_URL.match(source_url):
+    source_url = (source_url or "").strip() or None
+    if source_url is not None and not CGD_URL.match(source_url):
         raise HTTPException(422, "แหล่งที่มาต้องเป็นเว็บไซต์ gprocurement.go.th ของกรมบัญชีกลางเท่านั้น")
     dtype = db.scalar(select(DocumentType).where(DocumentType.code == document_type_code))
     if dtype is None:

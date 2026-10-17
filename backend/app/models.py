@@ -255,7 +255,7 @@ class DocumentTemplate(Base):
     template_id: Mapped[int] = mapped_column(primary_key=True)
     document_type_id: Mapped[int] = mapped_column(ForeignKey("document_types.document_type_id"))
     version_label: Mapped[str] = mapped_column(String(30))
-    source_url: Mapped[str] = mapped_column(String(500))
+    source_url: Mapped[str | None] = mapped_column(String(500))
     cgd_reference: Mapped[str] = mapped_column(String(255))
     file_format: Mapped[str] = mapped_column(String(5))
     storage_path: Mapped[str] = mapped_column(String(500))
