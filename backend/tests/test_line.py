@@ -85,9 +85,12 @@ def test_auto_notify_on_submit_and_decision(client, line_env):
     officer, head, admin = login(client, "officer"), login(client, "head"), login(client, "admin")
     r = client.post("/api/admin/line-channels", headers=admin, json={"name_th": "แจ้งเตือน", "line_to": "C" + "d" * 32})
     assert r.status_code == 201
+    before = len(line_env)
     r = client.post("/api/projects", json=project_payload(client, officer, "80000.00", "LINE-2570-001"), headers=officer)
     assert r.status_code == 201, r.text
     pid = r.json()["project_id"]
+    created = json.dumps(line_env[-1][1], ensure_ascii=False) if len(line_env) > before else ""
+    assert "สร้างโครงการใหม่" in created and "LINE-2570-001" in created and "กำหนดส่งมอบ 30 วัน" in created   # แจ้งตอนสร้างโครงการ
     assert client.get("/api/line-channels", headers=officer).json()[-1]["name_th"] == "แจ้งเตือน"   # เจ้าหน้าที่เห็นชื่อกลุ่ม
     assert client.get("/api/line-channels", headers=admin).status_code == 403                        # ผู้ดูแลไม่มีสิทธิ์ส่ง
 
@@ -172,11 +175,40 @@ def test_reset_password_from_env(client, monkeypatch):
         monkeypatch.setattr(s, "reset_password_to", secret("NewPass-2570-xyz"))
         msg = _reset_password_from_env(db)
     assert "officer" in msg and "ลบค่า PROC_RESET_PASSWORD_FOR" in msg and "NewPass-2570-xyz" not in msg
-    assert client.post("/api/auth/login", json={"username": "officer", "password": "Demo@1234"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "officer", "password": "P@ssw0rd-officer"}).status_code == 401
     assert client.post("/api/auth/login", json={"username": "officer", "password": "NewPass-2570-xyz"}).status_code == 200
     with SessionLocal() as db, db.begin():   # คืนรหัสเดิม (สั้นกว่านโยบาย) ให้เทสต์อื่นในโมดูลโดยตรง
         from sqlalchemy import select
         from app.core.security import hash_password
         from app.models import User
-        db.scalar(select(User).where(User.username == "officer")).password_hash = hash_password("Demo@1234")
-    assert client.post("/api/auth/login", json={"username": "officer", "password": "Demo@1234"}).status_code == 200
+        db.scalar(select(User).where(User.username == "officer")).password_hash = hash_password("P@ssw0rd-officer")
+    assert client.post("/api/auth/login", json={"username": "officer", "password": "P@ssw0rd-officer"}).status_code == 200
+
+
+def test_auto_notify_on_document_export(client, line_env, tmp_path):
+    """สร้างเอกสาร (export) → การ์ด "สร้างเอกสารแล้ว" พร้อมชนิดไฟล์ เข้ากลุ่มที่เปิดใช้."""
+    import io
+    from docx import Document
+    officer, head, admin = login(client, "officer"), login(client, "head"), login(client, "admin")
+    r = client.post("/api/projects", json=project_payload(client, officer, "80000.00", "LINE-2570-009"), headers=officer)
+    assert r.status_code == 201, r.text
+    pid = r.json()["project_id"]
+    version = client.get(f"/api/projects/{pid}", headers=officer).json()["row_version"]
+    r = client.post(f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/submit", headers=officer, json={
+        "row_version": version, "data": {
+            "doc_no": "พด 0019/2570", "doc_date": "2026-10-12", "reason_th": "ทดสอบเอกสาร", "spec_summary": "x",
+            "reference_price": "80000.00", "reference_price_source": "4", "delivery_days": 15,
+            "evaluation_criteria": "PRICE", "inspection_committee": [4]}})
+    assert r.status_code == 200, r.text
+    tpl = Document(); tpl.add_paragraph("{{ agency_name }} {{ doc_no }}")
+    buf = io.BytesIO(); tpl.save(buf)
+    r = client.post("/api/admin/templates", headers=admin, files={"file": ("f.docx", buf.getvalue(), "application/octet-stream")},
+                    data={"document_type_code": "PURCHASE_REQUEST_REPORT", "version_label": "line-1", "cgd_reference": "ทดสอบ",
+                          "effective_from": "2026-01-01"})
+    assert r.status_code == 201, r.text
+    assert client.post(f"/api/admin/templates/{r.json()['template_id']}/verify", headers=head).status_code == 200
+    before = len(line_env)
+    r = client.post(f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/export?format=docx", headers=officer)
+    assert r.status_code == 200, r.text
+    card = json.dumps(line_env[-1][1], ensure_ascii=False)
+    assert len(line_env) > before and "สร้างเอกสารแล้ว" in card and "ไฟล์ DOCX" in card and "LINE-2570-009" in card

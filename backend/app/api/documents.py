@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ EXPORTABLE = {"SUBMITTED", "APPROVED"}
 
 
 @router.post("/projects/{project_id}/steps/{step_code}/export")
-def export_document(project_id: int, step_code: str, request: Request, db: DB,
+def export_document(project_id: int, step_code: str, request: Request, db: DB, background: BackgroundTasks,
                     user: Annotated[User, Depends(require(Perm.DOCUMENT_EXPORT))],
                     fmt: Annotated[str, Query(alias="format", pattern="^(docx|pdf|xlsx)$")] = "docx") -> FileResponse:
     project = get_project(db, project_id)
@@ -43,6 +43,9 @@ def export_document(project_id: int, step_code: str, request: Request, db: DB,
     result = export_step_document(db, project, ps.step, fmt, user.user_id)
     write_audit(db, action="EXPORT", user_id=user.user_id, request=request, entity_table="generated_documents",
                 entity_id=result.document_id, new={"step": step_code, "format": fmt, "sha256": result.sha256})
+    # แจ้งกลุ่ม LINE ว่าสร้างเอกสารของขั้นตอนนี้แล้ว (ไม่แนบไฟล์ — ผู้ใช้กดแชร์ลิงก์เองได้จากหน้าโครงการ)
+    background.add_task(line_service.notify_step_change, project_id, step_code, "DOCUMENT",
+                        user.personnel.full_name_th, user.user_id, detail=f"ไฟล์ {fmt.upper()}")
     return FileResponse(result.path, media_type=result.media_type, filename=result.file_name)
 
 
