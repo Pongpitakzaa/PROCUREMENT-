@@ -15,6 +15,7 @@ import { UsersTab } from "./admin/UsersTab";
 interface Props {
   permissions: string[];
   userId: number;
+  initialTab?: TabKey;
 }
 
 type TabKey = "users" | "backup" | "templates" | "audit" | "line";
@@ -26,7 +27,7 @@ const fileSize = (b: number) => (b >= 1 << 20 ? `${(b / (1 << 20)).toFixed(1)} M
 const errText = (e: unknown) =>
   e instanceof ApiError ? [e.message, ...e.violations.map((v) => v.message)].join(" — ") : "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้";
 
-export function AdminPage({ permissions, userId }: Props) {
+export function AdminPage({ permissions, userId, initialTab }: Props) {
   const can = (p: string) => permissions.includes(p);
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
     { key: "users", label: "ผู้ใช้งาน", show: can("user:manage") },
@@ -36,7 +37,7 @@ export function AdminPage({ permissions, userId }: Props) {
     { key: "line", label: "กลุ่ม LINE", show: can("user:manage") },
   ];
   const visible = tabs.filter((t) => t.show);
-  const [tab, setTab] = useState<TabKey | undefined>(visible[0]?.key);
+  const [tab, setTab] = useState<TabKey | undefined>(initialTab && visible.some((t) => t.key === initialTab) ? initialTab : visible[0]?.key);
 
   if (!tab) return <div className="card empty">ไม่มีสิทธิ์เข้าถึงส่วนผู้ดูแลระบบ</div>;
 

@@ -10,9 +10,11 @@ interface Props {
   canCreate: boolean;
   onOpen: (projectId: number) => void;
   onCreate: () => void;
+  /** ผู้ดูแลระบบไม่มีสิทธิ์สร้างโครงการ (แบ่งแยกหน้าที่) → พาไปสร้างบัญชีเจ้าหน้าที่พัสดุแทน */
+  onManageUsers?: () => void;
 }
 
-export function ProjectListPage({ methods, canCreate, onOpen, onCreate }: Props) {
+export function ProjectListPage({ methods, canCreate, onOpen, onCreate, onManageUsers }: Props) {
   const [q, setQ] = useState("");
   const [fiscalYear, setFiscalYear] = useState(String(currentFiscalYearBE()));
   const [method, setMethod] = useState("");
@@ -50,6 +52,12 @@ export function ProjectListPage({ methods, canCreate, onOpen, onCreate }: Props)
           <p className="muted">{rows ? `${rows.length} โครงการ` : "กำลังโหลด…"}</p>
         </div>
         {canCreate && <button type="button" onClick={onCreate}>+ สร้างโครงการใหม่</button>}
+        {!canCreate && onManageUsers && (
+          <div className="no-create">
+            <button type="button" className="ghost" onClick={onManageUsers}>+ เพิ่มบัญชีเจ้าหน้าที่พัสดุ</button>
+            <small className="muted">ผู้ดูแลระบบสร้างโครงการเองไม่ได้ (แบ่งแยกหน้าที่) — สร้างบัญชี "เจ้าหน้าที่พัสดุ" แล้วเข้าสู่ระบบด้วยบัญชีนั้น</small>
+          </div>
+        )}
       </div>
 
       <div className="filters card">
@@ -91,6 +99,7 @@ export function ProjectListPage({ methods, canCreate, onOpen, onCreate }: Props)
         <div className="card empty">
           ไม่พบโครงการตามเงื่อนไข
           {canCreate && <><br /><button type="button" className="link" onClick={onCreate}>สร้างโครงการใหม่</button></>}
+          {!canCreate && onManageUsers && <><br /><button type="button" className="link" onClick={onManageUsers}>เพิ่มบัญชีเจ้าหน้าที่พัสดุเพื่อเริ่มสร้างโครงการ</button></>}
         </div>
       )}
 
