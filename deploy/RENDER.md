@@ -38,6 +38,17 @@
 
 ถ้าสร้างผู้ดูแลไม่สำเร็จ (เช่น รหัสผ่านไม่ผ่านนโยบาย) ดูสาเหตุที่ **Logs** (บรรทัด `init-db:`) แก้ค่าใน **Environment** แล้ว **Manual Deploy**
 
+## ลืมรหัสผ่าน / ไม่มีผู้ดูแลระบบ
+
+| สถานการณ์ | วิธีแก้ (ไม่ต้องใช้ Shell ใช้ได้บนแผนฟรี) |
+|---|---|
+| ลืมรหัสผ่านผู้ใช้คนใดก็ได้ | **Environment** → Add `PROC_RESET_PASSWORD_FOR` = ชื่อผู้ใช้ และ `PROC_RESET_PASSWORD_TO` = รหัสผ่านใหม่ (≥ 12 ตัว มีตัวอักษรและตัวเลข) → **Save Changes** → รอ deploy → เข้าสู่ระบบด้วยรหัสใหม่ → **ลบทั้งสองค่าออกทันที** (ไม่อย่างนั้นจะรีเซ็ตซ้ำทุกครั้งที่ deploy) |
+| ไม่อยากตั้งรหัสเอง | ใส่เฉพาะ `PROC_RESET_PASSWORD_FOR` ระบบสุ่มรหัสให้และแสดงใน **Logs** บรรทัด `init-db: รีเซ็ตรหัสผ่าน…` |
+| ระบบยังไม่มีผู้ใช้เลย (สร้าง service โดยไม่ผ่าน Blueprint) | ใส่ `PROC_BOOTSTRAP_ADMIN_USERNAME` / `_PASSWORD` / `_NAME` / `_CITIZEN_ID` / `PROC_BOOTSTRAP_DEPARTMENT_NAME` ตามตารางข้อ 3 → Save → ระบบสร้างผู้ดูแลให้ตอน deploy (ทำงานเฉพาะเมื่อยังไม่มีผู้ใช้) |
+| แผน starter ขึ้นไป | ใช้แท็บ **Shell**: `python -m app.cli reset-password <ชื่อผู้ใช้>` ก็ได้ |
+
+ทุกการรีเซ็ตบันทึกใน Audit Log (`PASSWORD_RESET`, via `env`) และ token เดิมของผู้ใช้นั้นใช้ไม่ได้ทันที
+
 ## สิ่งที่ Render ทำให้อัตโนมัติ
 
 - **HTTPS** และโดเมน `*.onrender.com` (ผูกโดเมนของหน่วยงานได้ที่ **Settings → Custom Domains**)

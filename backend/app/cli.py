@@ -207,6 +207,33 @@ def _bootstrap_admin(db) -> str:
     return f"สร้างผู้ดูแลระบบ {username} แล้ว — เข้าสู่ระบบแล้วเปลี่ยนรหัสผ่าน และลบค่า PROC_BOOTSTRAP_ADMIN_PASSWORD ออกจากการตั้งค่า"
 
 
+def _reset_password_from_env(db) -> str | None:
+    """PROC_RESET_PASSWORD_FOR=<ชื่อผู้ใช้> → ตั้งรหัสผ่านใหม่ตอน init-db (ทางเลือกเมื่อไม่มี shell เช่น Render แผนฟรี)."""
+    s = get_settings()
+    if not s.reset_password_for:
+        return None
+    username = s.reset_password_for.strip()
+    user = db.scalar(select(User).where(User.username == username))
+    if user is None:
+        return f"รีเซ็ตรหัสผ่านไม่ได้: ไม่พบผู้ใช้ {username} (ลบค่า PROC_RESET_PASSWORD_FOR แล้ว deploy ใหม่)"
+    if s.reset_password_to:
+        password = s.reset_password_to.get_secret_value()
+        problems = password_problems(password, username)
+        if problems:
+            return "รีเซ็ตรหัสผ่านไม่ได้: รหัสผ่าน" + " · ".join(problems)
+    else:
+        password = generate_temp_password()
+    user.password_hash = hash_password(password)
+    user.password_changed_at = datetime.now(UTC)
+    user.failed_login_count, user.locked_until, user.is_active = 0, None, True
+    write_audit(db, action="PASSWORD_RESET", user_id=None, entity_table="users", entity_id=user.user_id,
+                new={"username": username, "via": "env"})
+    shown = password if not s.reset_password_to else "(ตามค่า PROC_RESET_PASSWORD_TO)"
+    return (f"รีเซ็ตรหัสผ่านและปลดล็อกบัญชี {username} แล้ว — รหัสผ่านใหม่: {shown}\n"
+            "init-db: ** ลบค่า PROC_RESET_PASSWORD_FOR และ PROC_RESET_PASSWORD_TO ออกจาก Environment ทันที ** "
+            "ไม่อย่างนั้นจะรีเซ็ตซ้ำทุกครั้งที่ deploy")
+
+
 def _backfill_line_hmac(db) -> None:
     """กลุ่ม LINE ที่ลงทะเบียนก่อนมีคอลัมน์ line_to_hmac → คำนวณ blind index ให้ (ต้องใช้กุญแจถอดรหัส จึงทำใน Python)."""
     from app.core.crypto import decrypt_field
@@ -245,6 +272,9 @@ def init_db(_: argparse.Namespace) -> None:
     with SessionLocal() as db, db.begin():
         _backfill_line_hmac(db)
         print("init-db:", _bootstrap_admin(db))
+        reset_msg = _reset_password_from_env(db)
+        if reset_msg:
+            print("init-db:", reset_msg)
 
 
 def main(argv: list[str] | None = None) -> None:

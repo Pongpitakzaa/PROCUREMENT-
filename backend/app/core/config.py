@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     bootstrap_admin_name: str | None = None
     bootstrap_admin_citizen_id: str | None = None
     bootstrap_department_name: str | None = None
+    # รีเซ็ตรหัสผ่านผ่าน Environment (สำหรับแพลตฟอร์มที่ไม่มี shell เช่น Render แผนฟรี): ระบบตั้งรหัสใหม่ตอนเริ่มทำงาน
+    # แล้วพิมพ์ลง Logs — ใช้ครั้งเดียวแล้วลบค่าออก ไม่อย่างนั้นจะรีเซ็ตซ้ำทุกครั้งที่ deploy
+    reset_password_for: str | None = None
+    reset_password_to: SecretStr | None = None   # ไม่ตั้ง = สุ่มให้
 
     @field_validator("line_channel_access_token", "line_channel_secret", mode="before")
     @classmethod
