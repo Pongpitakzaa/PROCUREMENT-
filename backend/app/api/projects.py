@@ -102,7 +102,7 @@ def _project_rules(db: Session, body: ProjectCreate) -> list[pr.RuleViolation]:
 
 
 @router.post("/projects", status_code=201)
-def create_project(body: ProjectCreate, request: Request, db: DB,
+def create_project(body: ProjectCreate, request: Request, db: DB, background: BackgroundTasks,
                    user: Annotated[User, Depends(require(Perm.PROJECT_WRITE))]) -> dict:
     violations = _project_rules(db, body)
     errors = pr.errors_only(violations)
@@ -124,6 +124,11 @@ def create_project(body: ProjectCreate, request: Request, db: DB,
     wf.init_project_steps(db, project, user)
     write_audit(db, action="CREATE", user_id=user.user_id, request=request, entity_table="projects",
                 entity_id=project.project_id, new=body.model_dump(exclude={"items"}))
+    db.commit()   # โครงการต้องถูก commit ก่อน background task อ่าน (FastAPI รัน background ก่อน get_db commit)
+    # แจ้งกลุ่ม LINE ว่ามีโครงการใหม่
+    background.add_task(line_service.notify_step_change, project.project_id, None, "CREATED",
+                        user.personnel.full_name_th, user.user_id, step_name="สร้างโครงการ",
+                        detail=f"ปีงบประมาณ {project.fiscal_year_be} · กำหนดส่งมอบ {project.delivery_days} วัน")
     return {"project_id": project.project_id, "warnings": _violations_out(warnings)}
 
 

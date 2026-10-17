@@ -27,6 +27,7 @@ import re
 LINE_ID = re.compile(r"^[CU][0-9a-f]{32}$")
 
 STATUS_TH = {
+    "CREATED": ("สร้างโครงการใหม่", "#0EA5E9"),
     "SUBMITTED": ("รอพิจารณาอนุมัติ", "#F59E0B"),
     "APPROVED": ("อนุมัติแล้ว", "#16A34A"),
     "REJECTED": ("ส่งกลับแก้ไข", "#DC2626"),
@@ -58,7 +59,7 @@ def verify_download_token(token: str) -> int:
 
 def build_status_message(*, project_code: str, project_title: str, method_name: str, step_name: str,
                          status: str, budget_text: str, actor_name: str,
-                         download_url: str | None = None) -> dict[str, Any]:
+                         download_url: str | None = None, detail: str | None = None) -> dict[str, Any]:
     """Flex Message (การ์ดสถานะ) — ข้อความทั้งหมดถูกส่งเป็น JSON text node ของ LINE ไม่ถูกตีความเป็น markup."""
     label, color = STATUS_TH.get(status, (status, "#6B7280"))
 
@@ -74,7 +75,8 @@ def build_status_message(*, project_code: str, project_title: str, method_name: 
         "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": [
             {"type": "text", "text": project_title[:200], "weight": "bold", "wrap": True},
             row("เลขที่", project_code), row("วิธี", method_name), row("ขั้นตอน", step_name),
-            row("วงเงิน", budget_text), row("โดย", actor_name)]},
+            row("วงเงิน", budget_text), row("โดย", actor_name),
+            *([row("รายละเอียด", detail)] if detail else [])]},
     }
     if download_url:
         bubble["footer"] = {"type": "box", "layout": "vertical", "contents": [
@@ -165,10 +167,12 @@ def decrypt_channel(channel) -> str:
     return decrypt_field(channel.line_to_enc, "notification_channels.line_to")
 
 
-def notify_step_change(project_id: int, step_code: str, status: str, actor_name: str, user_id: int | None) -> None:
+def notify_step_change(project_id: int, step_code: str | None, status: str, actor_name: str, user_id: int | None,
+                       step_name: str | None = None, detail: str | None = None) -> None:
     """ส่งการ์ดสถานะเข้าทุกกลุ่มที่เปิดใช้ — รันใน background หลังตอบ client แล้ว (ล้มเหลวไม่กระทบงานหลัก).
 
-    บันทึกผลทุกครั้งใน notification_logs เพื่อให้ผู้ดูแลเห็นว่าส่งถึงหรือไม่
+    ครอบคลุมทุกความเคลื่อนไหวของโครงการ: สร้างโครงการ (step_code=None + step_name) · ส่งพิจารณา · อนุมัติ · ส่งกลับ ·
+    สร้างเอกสาร (detail = ชนิดไฟล์) — บันทึกผลทุกครั้งใน notification_logs เพื่อให้ผู้ดูแลเห็นว่าส่งถึงหรือไม่
     """
     import logging
     from sqlalchemy import select
@@ -184,15 +188,15 @@ def notify_step_change(project_id: int, step_code: str, status: str, actor_name:
     with SessionLocal() as db:
         project = db.get(Project, project_id)
         step = db.scalar(select(ProjectStep).join(WorkflowStep).where(ProjectStep.project_id == project_id,
-                                                                      WorkflowStep.code == step_code))
+                                                                      WorkflowStep.code == step_code)) if step_code else None
         channels = db.scalars(select(NotificationChannel).where(NotificationChannel.is_active.is_(True))).all()
-        if project is None or step is None or not channels:
+        if project is None or (step_code and step is None) or not channels:
             return
         message = build_status_message(
             project_code=project.project_code, project_title=project.title_th, method_name=project.method.name_th,
-            step_name=step.step.name_th, status=status,
+            step_name=step.step.name_th if step else (step_name or "—"), status=status,
             budget_text=f"{project.budget_amount:,.2f} บาท ({baht_text(project.budget_amount)})",
-            actor_name=actor_name)
+            actor_name=actor_name, detail=detail)
         for ch in channels:
             retry_key = uuid.uuid4()
             to = decrypt_field(ch.line_to_enc, "notification_channels.line_to")
