@@ -847,7 +847,7 @@ button.link.small { font-size: 12px; }
 .step-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .revert-hint { margin: 14px 0 0; font-size: 14px; }
 .decision.revert h4 { color: var(--err); }
-button.danger { background: var(--err); color: #fff; border-color: var(--err); }
+button.danger:not(.link) { background: var(--err); color: #fff; border-color: var(--err); }
 .attachments { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
 .attachments .section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
 .attachments h4 { margin: 0; font-size: 15px; }
