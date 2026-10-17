@@ -52,3 +52,28 @@ def test_user_edits_own_profile(client):
     # คืนค่าเดิมให้เทสต์อื่น
     assert client.patch("/api/auth/me/profile", headers=officer,
                         json={"title_th": "นาย", "position_th": "นักวิชาการพัสดุ", "employment_type": "CIVIL_SERVANT"}).status_code == 200
+
+
+def test_head_can_approve_own_submission_and_it_is_audited(client):
+    """ค่าเริ่มต้น: หัวหน้าเจ้าหน้าที่อนุมัติรายการที่ตนเองส่งได้ · audit บันทึก self_approval=true · เจ้าหน้าที่ยังอนุมัติไม่ได้ (403)."""
+    from tests.test_api_flow import login
+    from tests.test_line import project_payload
+    officer, head, admin = login(client, "officer"), login(client, "head"), login(client, "admin")
+    r = client.post("/api/projects", json=project_payload(client, officer, "80000.00", "SELF-2570-001"), headers=head)
+    assert r.status_code == 201, r.text
+    pid = r.json()["project_id"]
+    version = client.get(f"/api/projects/{pid}", headers=head).json()["row_version"]
+    r = client.post(f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/submit", headers=head, json={
+        "row_version": version, "data": {
+            "doc_no": "พด 0201/2570", "doc_date": "2026-10-12", "reason_th": "หัวหน้าจัดทำเอง", "spec_summary": "x",
+            "reference_price": "80000.00", "reference_price_source": "4", "delivery_days": 15,
+            "evaluation_criteria": "PRICE", "inspection_committee": [4]}})
+    assert r.status_code == 200, r.text
+    assert client.post(f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/decision", headers=officer,
+                       json={"approve": True}).status_code == 403
+    r = client.post(f"/api/projects/{pid}/steps/PURCHASE_REQUEST_REPORT/decision", headers=head, json={"approve": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "APPROVED"
+    items = client.get("/api/admin/audit", headers=admin, params={"limit": 5}).json()["items"]
+    row = next(a for a in items if a["action"] == "STEP_APPROVE" and a["entity_id"] == f"{pid}:PURCHASE_REQUEST_REPORT")
+    assert row["new_values"]["self_approval"] is True

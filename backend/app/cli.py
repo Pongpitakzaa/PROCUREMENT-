@@ -148,6 +148,14 @@ MIGRATIONS = [
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS line_to_hmac CHAR(64) UNIQUE",
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS source VARCHAR(10) NOT NULL DEFAULT 'MANUAL'",
     "ALTER TABLE notification_channels ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    # ฐานข้อมูลเดิมมี CHECK (approved_by <> submitted_by) ซึ่งขัดกับ PROC_SELF_APPROVAL_ROLES → ถอดออก (ชื่อ constraint ตั้งอัตโนมัติ)
+    """DO $$ DECLARE c text;
+       BEGIN
+         FOR c IN SELECT conname FROM pg_constraint
+                   WHERE conrelid = 'project_steps'::regclass AND contype = 'c'
+                     AND pg_get_constraintdef(oid) ILIKE '%approved_by <> submitted_by%'
+         LOOP EXECUTE format('ALTER TABLE project_steps DROP CONSTRAINT %I', c); END LOOP;
+       END $$""",
     """CREATE TABLE IF NOT EXISTS delivery_reminders (
         project_id INT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
         milestone VARCHAR(10) NOT NULL, due_date DATE NOT NULL,

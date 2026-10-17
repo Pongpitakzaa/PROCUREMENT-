@@ -246,9 +246,10 @@ def decide_step(project_id: int, step_code: str, body: StepDecisionIn, request: 
                 background: BackgroundTasks, user: Annotated[User, Depends(require(Perm.STEP_APPROVE))]) -> dict:
     p = get_project(db, project_id)
     ps = wf.decide_step(db, p, step_code, body.approve, user)
+    self_approval = ps.submitted_by == user.user_id   # หัวหน้าอนุมัติรายการที่ตนเองส่ง — บันทึกชัดเจนในหลักฐาน
     write_audit(db, action="STEP_APPROVE" if body.approve else "STEP_REJECT", user_id=user.user_id,
                 request=request, entity_table="project_steps", entity_id=f"{project_id}:{step_code}",
-                new={"comment": body.comment})
+                new={"comment": body.comment, "self_approval": self_approval})
     background.add_task(line_service.notify_step_change, project_id, step_code, ps.status,
                         user.personnel.full_name_th, user.user_id)
     return {"status": ps.status, "project_status": p.status}

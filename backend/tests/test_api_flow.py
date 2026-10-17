@@ -186,12 +186,15 @@ def test_full_specific_method_flow(client, monkeypatch):
     assert submit("PRICE_AGREEMENT", price).status_code == 200
     assert approve("PRICE_AGREEMENT").status_code == 200
 
-    # SoD: หัวหน้าเป็นผู้เสนอเอง แล้วอนุมัติเองไม่ได้
+    # SoD: เมื่อปิดข้อยกเว้น (PROC_SELF_APPROVAL_ROLES=[]) หัวหน้าที่เป็นผู้เสนอเองอนุมัติเองไม่ได้
     award = {"doc_no": "พด 0003/2570", "doc_date": "2026-10-14", "winner_tax_id": VENDOR_TAX_ID,
              "award_amount": "79500.00"}
     assert submit("AWARD_APPROVAL", award, who=head).status_code == 200
+    from app.core.config import get_settings
+    monkeypatch.setattr(get_settings(), "self_approval_roles", [])
     r = approve("AWARD_APPROVAL", who=head)
     assert r.status_code == 422 and codes(r) == {"SOD_VIOLATION"}
+    monkeypatch.setattr(get_settings(), "self_approval_roles", ["HEAD_OF_PROCUREMENT"])
     assert submit("AWARD_APPROVAL", award).status_code == 422                        # ล็อกหลังส่งแล้ว
 
     # --- Template registry (CGD only) + Export ----------------------------------

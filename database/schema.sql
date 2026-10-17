@@ -191,9 +191,9 @@ CREATE TABLE project_steps (
     approved_by   INT REFERENCES users(user_id),
     approved_at   TIMESTAMPTZ,
     step_data     JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- ค่าฟอร์มเฉพาะขั้นตอน (validated แล้ว)
-    PRIMARY KEY (project_id, step_id),
-    -- Segregation of Duties: ผู้เสนอ ≠ ผู้อนุมัติ
-    CHECK (approved_by IS NULL OR approved_by <> submitted_by)
+    PRIMARY KEY (project_id, step_id)
+    -- Segregation of Duties (ผู้เสนอ ≠ ผู้อนุมัติ) บังคับใน service ตาม PROC_SELF_APPROVAL_ROLES
+    -- (ค่าเริ่มต้นให้หัวหน้าเจ้าหน้าที่อนุมัติรายการของตนเองได้ และบันทึก self_approval ใน audit_logs)
 );
 
 -- ใบเสนอราคา / ผลการพิจารณา

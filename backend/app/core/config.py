@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     active_data_key_id: str = "k1"
     blind_index_key: SecretStr = Field(min_length=32)   # HMAC key สำหรับค้นหาเลขบัตรที่เข้ารหัสแล้ว
 
+    # แบ่งแยกหน้าที่ (ผู้เสนอ ≠ ผู้อนุมัติ): บทบาทในรายการนี้อนุมัติรายการที่ตนเองส่งพิจารณาได้ (หน่วยงานเล็กที่หัวหน้า
+    # เจ้าหน้าที่จัดทำเอง) — ทุกครั้งบันทึก audit ว่า self_approval=true · ตั้ง [] เพื่อบังคับแบ่งแยกหน้าที่เต็มรูปแบบ
+    self_approval_roles: list[str] = ["HEAD_OF_PROCUREMENT"]
+
     # Login brute-force protection
     max_failed_logins: int = 5
     lockout_minutes: int = 15
